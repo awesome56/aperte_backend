@@ -24,7 +24,7 @@ mail = Mail()
 
 
 @auth.post('/register')
-# @swag_from('./docs/auth/register.yml')
+@swag_from('./docs/auth/register.yml')
 def register():
 
     full_name = ""
@@ -99,7 +99,7 @@ def register():
 
 
 @auth.post('/login')
-# @swag_from('./docs/auth/login.yml')
+@swag_from('./docs/auth/login.yml')
 def login():
 
     email = ""
@@ -174,7 +174,7 @@ def login():
 
 
 @auth.post("/verifyemail/<email>")
-# @swag_from('./docs/auth/verifyemail.yml')
+@swag_from('./docs/auth/verifyemail.yml')
 def verify_password(email):
 
     if not validators.email(email):
@@ -295,7 +295,7 @@ def user():
 
 @auth.get("/token/refresh")
 @jwt_required(refresh=True)
-# @swag_from('./docs/auth/refreshtoken.yml')
+@swag_from('./docs/auth/refreshtoken.yml')
 def refresh_users_token():
     identity = get_jwt_identity()
     access = create_access_token(identity=identity)
@@ -304,7 +304,7 @@ def refresh_users_token():
             }), HTTP_200_OK
 
 @auth.get("/forgotpassword/<email>")
-# @swag_from('./docs/auth/forgotpassword.yml')
+@swag_from('./docs/auth/forgotpassword.yml')
 def forgot_password(email):
 
     user = User.query.filter_by(email=email).first()

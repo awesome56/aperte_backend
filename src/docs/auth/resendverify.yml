@@ -1,0 +1,20 @@
+Resend verification email
+---
+tags:
+  - Authentication
+parameters:
+  - in: path
+    name: email
+    required: true
+responses:
+  200:
+    description: Code successfuy sent to email
+
+  400:
+    description: User supplied bad request data
+
+  404:
+    description: User email invalid
+
+  409:
+    description: User already verified

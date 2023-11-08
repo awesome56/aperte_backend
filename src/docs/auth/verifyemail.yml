@@ -1,0 +1,29 @@
+Verify email
+---
+tags:
+  - Authentication
+parameters:
+  - in: path
+    name: email
+    required: true
+  - name: body
+    description: The body should contain the code sent to the email
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - "code"
+      properties:
+        code:
+          type: "string"
+          example: "123456"
+responses:
+  202:
+    description: When a user successfully logs in
+
+  400:
+    description: Fails to login due to bad request data
+
+  404:
+    description: User email not found

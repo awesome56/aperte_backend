@@ -1,0 +1,34 @@
+User log in, If user email is not verified an email will be resent to the email for verification.
+---
+tags:
+  - Authentication
+parameters:
+  - name: body
+    description: The body should contain the user login credentials, username can be username, email or phone number
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - "username"
+        - "password"
+      properties:
+        username:
+          type: "string"
+          example: "name@gmail.com"
+        password:
+          type: "string"
+          format: Pa55_Word
+          example: "********"
+responses:
+  200:
+    description: Credentials are correct but user email is not verified
+
+  202:
+    description: When a user successfully logs in
+
+  400:
+    description: Fails to login due to bad request data
+
+  401:
+    description: A user supplies incorrect credentials

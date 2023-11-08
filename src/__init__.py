@@ -15,9 +15,9 @@ from src.constants.http_status_codes import HTTP_404_NOT_FOUND
 from src.constants.http_status_codes import HTTP_405_METHOD_NOT_ALLOWED
 from src.constants.http_status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from flask_migrate import Migrate
-# from flasgger import Swagger, swag_from
-# from src.config.swagger import template, swagger_config
-# from flask_mail import Mail
+from flasgger import Swagger, swag_from
+from src.config.swagger import template, swagger_config
+from flask_mail import Mail
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True )
@@ -87,7 +87,7 @@ def create_app(test_config=None):
     # app.register_blueprint(notifications)
     # app.register_blueprint(operations)
 
-    # Swagger(app, config=swagger_config, template=template)
+    Swagger(app, config=swagger_config, template=template)
 
     @app.errorhandler(HTTP_400_BAD_REQUEST)
     def handle_400(e):

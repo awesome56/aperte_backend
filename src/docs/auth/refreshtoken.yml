@@ -1,0 +1,14 @@
+Refresh access token
+---
+tags:
+  - Authentication
+parameters:
+  - in: header
+    name: Authorization
+    required: true
+responses:
+  200:
+    description: Gets user details
+
+  401:
+    description: Fails to get user details due to authentication error
