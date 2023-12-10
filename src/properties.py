@@ -17,6 +17,7 @@ import os
 import time
 from datetime import datetime
 import json
+from sqlalchemy import func
 
 
 properties = Blueprint("property", __name__, url_prefix="/api/v1/properties")
@@ -35,15 +36,17 @@ def create_property():
     bedrooms = request.get_json().get('bedrooms')
     bathrooms = request.get_json().get('bathrooms')
     location = request.get_json().get('location','')
-    address = request.get_json().get('address','')
+    city = request.get_json().get('city','')
+    state = request.get_json().get('state','')
+    country = request.get_json().get('country','')
     latitude = request.get_json().get('latitude')
     longitude = request.get_json().get('longitude')
     year_built = request.get_json().get('year_built')
     amenities = request.get_json().get('amenities')
-    available = request.get_json().get('available')
+    negotiable = request.get_json().get('negotiable', 0)
 
-    if not title or not description or not property_type or not price or not location or not address:
-        return jsonify({'error': "Property title, description, property type, price, location and address must not be empty"}), HTTP_400_BAD_REQUEST 
+    if not title or not description or not property_type or not price or not location or not city or not state or not country:
+        return jsonify({'error': "Property title, description, property type, price, location, city, state, country must not be empty"}), HTTP_400_BAD_REQUEST 
     
     if len(title) < 3:
         return jsonify({'error': "Property title must be more than 2 characters"}), HTTP_400_BAD_REQUEST
@@ -121,11 +124,11 @@ def create_property():
         except ValueError:
             return jsonify({'error': "Year built must be an whole number"}), HTTP_400_BAD_REQUEST
         
-    if isinstance(available, int) and (available == 0 or available == 1):
+    if isinstance(negotiable, int) and (negotiable == 0 or negotiable == 1):
         # year_built is an integer
         pass
     else:
-        return jsonify({'error': "Available must be either 0 or 1"}), HTTP_400_BAD_REQUEST
+        return jsonify({'error': "Negotiable must be either 0 or 1"}), HTTP_400_BAD_REQUEST
         
     if isinstance(amenities, dict):
         # amenities is a JSON object (dictionary)
@@ -136,7 +139,7 @@ def create_property():
         return jsonify({'error': "Amenities must be in json format"}), HTTP_400_BAD_REQUEST
     
     
-    property = Property(user_id=current_user, title=title, description=description, property_type=property_type, price=price, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, address=address, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, created_at=datetime.now(), updated_at=datetime.now())
+    property = Property(user_id=current_user, title=title, description=description, property_type=property_type, price=price, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, created_at=datetime.now(), updated_at=datetime.now())
 
     db.session.add(property)
     db.session.commit()
@@ -150,6 +153,10 @@ def create_property():
                     'created_at' : property_image.created_at,
                     'updated_at' : property_image.updated_at,
                 })
+        
+    average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
+
+    user = User.query.filter_by(id=current_user).first()
 
     return jsonify({
         'id': property.id,
@@ -162,16 +169,21 @@ def create_property():
         'bedrooms' : property.bedrooms,
         'bathrooms' : property.bathrooms,
         'location' : property.location,
-        'address' : property.address,
+        'city' : property.city,
+        'state' : property.state,
+        'country' : property.country,
         'latitude' : property.latitude,
         'logitude': property.longitude,
         'year_built': property.year_built,
         'amenities': json.loads(property.amenities),
         'images' : attachments,
+        'negotiable' : property.negotiable,
         'available' : property.available,
         'approved': property.approved,
         'created_at': property.created_at,
         'updated_at': property.updated_at,
+        'average_rating' : average_rating,
+        'username' : user.username
     }), HTTP_201_CREATED
 
 
@@ -298,6 +310,10 @@ def get_property(id):
                     'created_at' : property_image.created_at,
                     'updated_at' : property_image.updated_at,
                 })
+        
+    average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
+
+    user = User.query.filter_by(id=property.user_id).first()
 
     return jsonify({
         'id': property.id,
@@ -310,15 +326,21 @@ def get_property(id):
         'bedrooms' : property.bedrooms,
         'bathrooms' : property.bathrooms,
         'location' : property.location,
-        'address' : property.address,
+        'city' : property.city,
+        'state' : property.state,
+        'country' : property.country,
         'latitude' : property.latitude,
         'logitude': property.longitude,
         'year_built': property.year_built,
         'amenities': json.loads(property.amenities),
         'images' : attachments,
+        'negotiable' : property.negotiable,
+        'available' : property.available,
         'approved': property.approved,
         'created_at': property.created_at,
         'updated_at': property.updated_at,
+        'average_rating' : average_rating,
+        'username' : user.username
     }), HTTP_200_OK
 
 
@@ -340,6 +362,11 @@ def get_properties(id):
             dp_url = ""
         else:
             dp_url = dp.image_url
+
+        average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
+
+        user = User.query.filter_by(id=property.user_id).first()
+
         data.append({
             'id': property.id,
             'title': property.title,
@@ -351,6 +378,8 @@ def get_properties(id):
             'available': property.available,
             'created_at': property.created_at,
             'updated_at': property.updated_at,
+            'average_rating' : average_rating,
+            'username' : user.username
         })
 
     meta={
@@ -389,15 +418,18 @@ def edit_property(id):
     bedrooms = request.get_json().get('bedrooms')
     bathrooms = request.get_json().get('bathrooms')
     location = request.get_json().get('location','')
-    address = request.get_json().get('address','')
+    city = request.get_json().get('city','')
+    state = request.get_json().get('state','')
+    country = request.get_json().get('country','')
     latitude = request.get_json().get('latitude')
     longitude = request.get_json().get('longitude')
     year_built = request.get_json().get('year_built')
     amenities = request.get_json().get('amenities')
-    available = request.get_json().get('available')
+    negotiable = request.get_json().get('negotiable', 0)
+    available = request.get_json().get('negotiable', 1)
 
-    if not title or not description or not property_type or not price or not location or not address:
-        return jsonify({'error': "Title, Description, Property type, Price, Location and Address must not be empty"}), HTTP_400_BAD_REQUEST 
+    if not title or not description or not property_type or not price or not location or not city or not state or not country:
+        return jsonify({'error': "Title, Description, Property type, Price, Location, City, State, Country must not be empty"}), HTTP_400_BAD_REQUEST 
     
     if len(title) < 3:
         return jsonify({'error': "Title must be more than 2 characters"}), HTTP_400_BAD_REQUEST
@@ -480,6 +512,12 @@ def edit_property(id):
         pass
     else:
         return jsonify({'error': "Available must be either 0 or 1"}), HTTP_400_BAD_REQUEST
+    
+    if isinstance(negotiable, int) and (negotiable == 0 or negotiable == 1):
+        # year_built is an integer
+        pass
+    else:
+        return jsonify({'error': "Negotiable must be either 0 or 1"}), HTTP_400_BAD_REQUEST
         
     if isinstance(amenities, dict):
         # amenities is a JSON object (dictionary)
@@ -497,7 +535,10 @@ def edit_property(id):
     property.bedrooms=bedrooms
     property.bathrooms=bathrooms
     property.location=location
-    property.address=address
+    property.city=city
+    property.state=state
+    property.country=country
+    property.negotiable=negotiable
     property.latitude=latitude
     property.longitude=longitude
     property.year_built=year_built
@@ -516,6 +557,10 @@ def edit_property(id):
                     'created_at' : property_image.created_at,
                     'updated_at' : property_image.updated_at,
                 })
+        
+    average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
+
+    user = User.query.filter_by(id=property.user_id).first()
 
     return jsonify({
         'id': property.id,
@@ -528,14 +573,19 @@ def edit_property(id):
         'bedrooms' : property.bedrooms,
         'bathrooms' : property.bathrooms,
         'location' : property.location,
-        'address' : property.address,
+        'city' : property.city,
+        'state' : property.state,
+        'country' : property.country,
         'latitude' : property.latitude,
         'logitude': property.longitude,
         'year_built': property.year_built,
         'amenities': json.loads(property.amenities),
         'images' : attachments,
+        'negotiable' : property.negotiable,
         'available' : property.available,
         'approved': property.approved,
         'created_at': property.created_at,
         'updated_at': property.updated_at,
+        'average_rating' : average_rating,
+        'username' : user.username
     }), HTTP_200_OK

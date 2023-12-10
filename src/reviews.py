@@ -97,7 +97,7 @@ def get_review(id):
 
 
 @reviews.route('/properties/<int:id>', methods=['GET'])
-def get_branch_reviews(id):
+def get_property_reviews(id):
 
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)

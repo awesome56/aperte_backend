@@ -1,0 +1,58 @@
+Add image for user, User can add image.
+tags:
+  - User
+operationId: addUserImage
+parameters:
+  - in: header
+    name: Authorization
+    required: true
+    # description: The body should contain an image file of type jpg, png, heif, jpeg and not more than 16 megabite.
+description: This operation allows a user to upload an image file for their profile picture.
+content:
+    multipart/form-data:
+      schema:
+        # description: The file should be an image file of type jpg, png, heif, jpeg and not more than 16 megabite.
+        # The property name 'file' will be used for all files.
+        file:
+          type: array
+          items:
+            type: string
+            format: binary
+            # description: The file should be an image file of type jpg, png, heif, jpeg and not more than 16 megabite.
+            # The property name 'file' will be used for all files.
+            required: true
+responses:
+  201:
+    description: User image added successfully
+    schema:
+      type: object
+      properties:
+        profile_picture:
+          type: string
+          format: url-encoded
+          # description: The profile picture URL encoded as a string.
+          example:
+            profile_picture: "/static/files/1/1625155481234_profile.jpg"
+  400:
+    description: File empty or invalid format
+    schema:
+      type: object
+      properties:
+        error:
+          type: string
+          format: text/plain
+          # description: The error message in plain text format.
+          example:
+            error: File empty or invalid format
+  404:
+    description: User not found or does not exist
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+          format: text/plain
+          # description: The error message in plain text format.
+          example:
+            message: User not found or does not exist
+

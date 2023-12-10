@@ -276,7 +276,7 @@ def resend_verify(email):
 
 @auth.get("/user")
 @jwt_required()
-# @swag_from('./docs/user/user.yml')
+@swag_from('./docs/user/user.yml')
 def user():
     user_id = get_jwt_identity()
     user = User.query.filter_by(id=user_id).first()
