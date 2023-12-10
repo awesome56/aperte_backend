@@ -1,0 +1,18 @@
+Delete User Image
+---
+tags:
+  - User
+parameters:
+  - in: header
+    name: Authorization
+    required: true
+operationId: deleteUserImage
+responses:
+  204:
+    description: User image deleted successfully
+  404:
+    description: User not found
+    content:
+      application/json:
+        example:
+          message: User not found

@@ -1,7 +1,7 @@
-Refresh access token
+GET user details
 ---
 tags:
-  - Authentication
+  - User
 parameters:
   - in: header
     name: Authorization

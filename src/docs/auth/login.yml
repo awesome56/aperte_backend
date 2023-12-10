@@ -10,10 +10,10 @@ parameters:
     schema:
       type: object
       required:
-        - "username"
+        - "email"
         - "password"
       properties:
-        username:
+        email:
           type: "string"
           example: "name@gmail.com"
         password:

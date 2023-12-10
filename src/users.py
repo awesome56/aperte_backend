@@ -23,7 +23,7 @@ users = Blueprint("user", __name__, url_prefix="/api/v1/users")
 @users.put('/')
 @users.patch('/')
 @jwt_required()
-# @swag_from('./docs/user/edituser.yml')
+@swag_from('./docs/user/edituser.yml')
 def edit_user():
 
     current_user = get_jwt_identity()
@@ -69,6 +69,7 @@ def edit_user():
 # Add user image
 @users.route('/dp', methods=['POST'])
 @jwt_required()
+# @swag_from('./docs/user/addimage.yml')
 def add_image():
     current_user = get_jwt_identity()
 
@@ -135,6 +136,7 @@ def allowed_file_size(file):
 # Delete user image
 @users.route('/dp', methods=['DELETE'])
 @jwt_required()
+@swag_from('./docs/user/deleteimage.yml')
 def delete_image():
     current_user = get_jwt_identity()
 

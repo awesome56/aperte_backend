@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 import os
 from src.auth import auth, mail
 from src.users import users
@@ -25,7 +26,7 @@ def create_app(test_config=None):
     if test_config is None:
         app.config.from_mapping(
             SECRET_KEY=os.environ.get("SECRET_KEY"),
-            SQLALCHEMY_DATABASE_URI=os.environ.get("SQLALCHEMY_DB_URI"),
+            SQLALCHEMY_DATABASE_URI=os.environ.get("DATABASE_URL"),
             SQLALCHEMY_TRACK_MODIFICATIONS=False,
             JWT_SECRET_KEY=os.environ.get('JWT_SECRET_KEY'),
 
@@ -64,7 +65,7 @@ def create_app(test_config=None):
     # # app.config['MAIL_SUPPRESS_SEND'] = app.testing  # Suppress sending (True/False)
     # app.config['MAIL_ASCII_ATTACHMENTS'] = False  # ASCII attachments (True/False)
 
-    
+    CORS(app)
 
     db.app = app
     db.init_app(app)
