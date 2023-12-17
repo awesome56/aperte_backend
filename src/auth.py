@@ -168,7 +168,7 @@ def login():
 
             # response.set_cookie('refresh_token', refresh, httponly=True, samesite='Strict')
 
-            response.set_cookie('refresh_token', refresh, httponly=True)
+            response.set_cookie('refresh_token', refresh, httponly=True, samesite='None')
 
             return response, HTTP_202_ACCEPTED
         
@@ -233,7 +233,7 @@ def verify_password(email):
 
     # response.set_cookie('refresh_token', refresh, httponly=True, samesite='Strict')
 
-    response.set_cookie('refresh_token', refresh, httponly=True)
+    response.set_cookie('refresh_token', refresh, httponly=True, samesite='None')
 
     return response, HTTP_202_ACCEPTED
 
