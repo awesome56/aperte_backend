@@ -156,21 +156,32 @@ def login():
             refresh = create_refresh_token(identity=user.id)
             access = create_access_token(identity=user.id)
 
-            response = jsonify({
+            # response = jsonify({
+            #     'user': {
+            #         'access': access,
+            #         'full_name': user.full_name,
+            #         'username' : user.username,
+            #         'email': user.email,
+            #         'email_verified': user.email_verified
+            #     }
+            # })
+
+            # response.set_cookie('refresh_token', refresh, httponly=True, samesite='Strict')
+
+            # response.set_cookie('refresh_token', refresh, httponly=False, samesite='None')
+
+            # return response, HTTP_202_ACCEPTED
+
+            return jsonify({
                 'user': {
+                    'refresh': refresh,
                     'access': access,
                     'full_name': user.full_name,
                     'username' : user.username,
                     'email': user.email,
                     'email_verified': user.email_verified
                 }
-            })
-
-            # response.set_cookie('refresh_token', refresh, httponly=True, samesite='Strict')
-
-            response.set_cookie('refresh_token', refresh, httponly=False, samesite='None')
-
-            return response, HTTP_202_ACCEPTED
+            }), HTTP_202_ACCEPTED
         
     return jsonify({'error': "Unauthorized"}), HTTP_401_UNAUTHORIZED
 
@@ -221,21 +232,32 @@ def verify_password(email):
     refresh = create_refresh_token(identity=user.id)
     access = create_access_token(identity=user.id)
 
-    response = jsonify({
-                'user': {
-                    'access': access,
-                    'full_name': user.full_name,
-                    'username' : user.username,
-                    'email': user.email,
-                    'email_verified': user.email_verified
-                }
-            })
+    # response = jsonify({
+    #             'user': {
+    #                 'access': access,
+    #                 'full_name': user.full_name,
+    #                 'username' : user.username,
+    #                 'email': user.email,
+    #                 'email_verified': user.email_verified
+    #             }
+    #         })
 
     # response.set_cookie('refresh_token', refresh, httponly=True, samesite='Strict')
 
-    response.set_cookie('refresh_token', refresh, httponly=False, samesite='None')
+    # response.set_cookie('refresh_token', refresh, httponly=False, samesite='None')
 
-    return response, HTTP_202_ACCEPTED
+    # return response, HTTP_202_ACCEPTED
+
+    return jsonify({
+        'user': {
+            'refresh': refresh,
+            'access': access,
+            'full_name': user.full_name,
+            'username' : user.username,
+            'email': user.email,
+            'email_verified': user.email_verified
+        }
+    }), HTTP_202_ACCEPTED
 
 
 @auth.get("/resendverify/<email>")
