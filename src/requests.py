@@ -18,6 +18,7 @@ import time
 from sqlalchemy import func
 from datetime import datetime
 import json
+from flasgger import swag_from
 
 
 requests = Blueprint("request", __name__, url_prefix="/api/v1/requests")
@@ -25,6 +26,7 @@ requests = Blueprint("request", __name__, url_prefix="/api/v1/requests")
 
 @requests.post("/")
 @jwt_required()
+@swag_from('./docs/requests/createrequest.yml')
 def create_requests():
     current_user = get_jwt_identity()
 
@@ -157,6 +159,7 @@ def create_requests():
 
 
 @requests.get("/<int:id>")
+@swag_from('./docs/requests/getrequest.yml')
 def get_property(id):
 
     request_ = Request.query.filter_by(id=id).first()
@@ -190,6 +193,7 @@ def get_property(id):
 @requests.put('/<int:id>')
 @requests.patch('/<int:id>')
 @jwt_required()
+@swag_from('./docs/requests/editrequest.yml')
 def edit_request(id):
 
     current_user = get_jwt_identity()
@@ -343,6 +347,7 @@ def edit_request(id):
 
 
 @requests.route('/user/<int:id>/', methods=['GET'])
+@swag_from('./docs/requests/getuserrequests.yml')
 def get_user_requests(id):
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
@@ -383,6 +388,7 @@ def get_user_requests(id):
 
 @requests.route('/<int:id>', methods=['DELETE'])
 @jwt_required()
+@swag_from('./docs/requests/deleterequest.yml')
 def delete_request(id):
     current_user = get_jwt_identity()
 

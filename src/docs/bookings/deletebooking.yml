@@ -1,0 +1,19 @@
+Delete a booking (owner or customer). Frees the associated slot.
+---
+tags:
+  - Bookings
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the booking
+responses:
+  204:
+    description: Booking deleted
+  401:
+    description: Unauthorized
+  404:
+    description: Booking not found

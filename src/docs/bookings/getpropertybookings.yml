@@ -1,0 +1,36 @@
+Get all bookings for a property (owner only).
+---
+tags:
+  - Bookings
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: property_id
+    required: true
+    type: integer
+    description: Id of the property
+  - in: query
+    name: page
+    required: false
+    type: integer
+    default: 1
+  - in: query
+    name: per_page
+    required: false
+    type: integer
+    default: 20
+  - in: query
+    name: status
+    required: false
+    type: string
+    description: Filter by status (pending, confirmed, cancelled, completed)
+responses:
+  200:
+    description: Paginated list of bookings
+  400:
+    description: Invalid status
+  401:
+    description: Unauthorized
+  404:
+    description: Property not found

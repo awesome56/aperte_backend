@@ -1,0 +1,15 @@
+Get a single property request by its ID.
+---
+tags:
+  - Requests
+parameters:
+  - in: path
+    name: id
+    description: The ID of the request
+    required: true
+    type: integer
+responses:
+  200:
+    description: Request details retrieved successfully
+  404:
+    description: Request not found

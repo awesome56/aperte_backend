@@ -1,0 +1,15 @@
+Get a single room.
+---
+tags:
+  - Rooms
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the room
+responses:
+  200:
+    description: Room details
+  404:
+    description: Room not found

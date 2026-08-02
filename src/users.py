@@ -6,15 +6,13 @@ from src.constants.http_status_codes import HTTP_200_OK
 from src.constants.http_status_codes import HTTP_201_CREATED
 from src.constants.http_status_codes import HTTP_202_ACCEPTED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
+from src.constants.http_status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from flask import Blueprint, request
 from src.database import User, Property, Message, PropertyImage, Request, Review, db
 from flask import Blueprint, request, jsonify
+from src.constants.storage import upload_file, delete_file
 import validators
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from werkzeug.utils import secure_filename
-import os
-import shutil
-import time
 from datetime import datetime
 from flasgger import swag_from
 
@@ -69,7 +67,7 @@ def edit_user():
 # Add user image
 @users.route('/dp', methods=['POST'])
 @jwt_required()
-# @swag_from('./docs/user/addimage.yml')
+@swag_from('./docs/user/addimage.yml')
 def add_image():
     current_user = get_jwt_identity()
 
@@ -100,26 +98,17 @@ def add_image():
     # Reset the pointer to the beginning of the file
     file.seek(0)
 
-    # Append a unique micro timestamp to the filename
-    timestamp = int(time.time() * 1000000)
+    try:
+        profile_picture = upload_file(file, 'users/{}/dp'.format(current_user))
+    except Exception as e:
+        return jsonify({'error': str(e)}), HTTP_500_INTERNAL_SERVER_ERROR
 
-    # Get the absolute path of the current working directory
-    app_root = os.path.dirname(os.path.abspath(__file__))
-
-    user_directory = os.path.join(app_root, 'static', 'files', str(current_user))
-    os.makedirs(user_directory, exist_ok=True)
-    
-    file_path = os.path.join(user_directory, f'{timestamp}_{secure_filename(file.filename)}')
-
-    # Save the file to disk
-    file.save(file_path)
-
-    user.profile_picture = file_path
+    user.profile_picture = profile_picture
 
     db.session.commit()
 
-    if os.path.exists(oldfile):
-        os.remove(oldfile)
+    if oldfile:
+        delete_file(oldfile)
 
     return jsonify({'profile_picture': user.profile_picture}),HTTP_201_CREATED
 
@@ -154,8 +143,8 @@ def delete_image():
 
     db.session.commit()
 
-    if os.path.exists(oldfile):
-        os.remove(oldfile)
+    if oldfile:
+        delete_file(oldfile)
 
     return jsonify({}), HTTP_204_NO_CONTENT
 

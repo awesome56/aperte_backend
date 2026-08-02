@@ -4,6 +4,7 @@ attrs==23.1.0
 bcrypt==4.0.1
 bleach==6.1.0
 blinker==1.6.2
+boto3==1.43.62
 click==8.1.6
 colorama==0.4.6
 decorator==5.1.1

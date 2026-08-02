@@ -1,0 +1,46 @@
+Create a time slot for a hall or event_center property.
+---
+tags:
+  - Slots
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: property_id
+    required: true
+    type: integer
+    description: Id of the hall or event_center property
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+          example: 2026-08-15
+          description: Date of the slot (YYYY-MM-DD)
+        start_time:
+          type: string
+          example: "09:00"
+          description: Start time in HH:MM 24-hour format
+        end_time:
+          type: string
+          example: "15:00"
+          description: End time in HH:MM 24-hour format
+        price:
+          type: number
+          example: 150000
+          description: Price of the slot
+responses:
+  201:
+    description: Slot created
+  400:
+    description: Invalid data or property is not a hall/event_center
+  401:
+    description: Unauthorized
+  404:
+    description: Property not found
+  409:
+    description: Slot overlaps with an existing slot

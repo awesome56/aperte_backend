@@ -1,0 +1,41 @@
+Edit a room.
+---
+tags:
+  - Rooms
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the room
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      properties:
+        room_type:
+          type: string
+          example: Deluxe
+        beds:
+          type: integer
+          example: 2
+        price:
+          type: number
+          example: 60000
+        amenities:
+          type: object
+        available:
+          type: integer
+          example: 1
+responses:
+  200:
+    description: Room updated
+  400:
+    description: Invalid data
+  401:
+    description: Unauthorized
+  404:
+    description: Room not found

@@ -1,0 +1,27 @@
+Get a paginated list of all properties belonging to a user.
+---
+tags:
+  - Properties
+parameters:
+  - in: path
+    name: id
+    description: The ID of the user whose properties should be returned
+    required: true
+    type: integer
+  - in: query
+    name: page
+    description: Page number
+    required: false
+    type: integer
+    default: 1
+  - in: query
+    name: per_page
+    description: Number of items per page
+    required: false
+    type: integer
+    default: 20
+responses:
+  200:
+    description: Paginated list of user properties
+  404:
+    description: User not found

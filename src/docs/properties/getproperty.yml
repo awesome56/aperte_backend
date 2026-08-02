@@ -1,0 +1,15 @@
+Get a single property by its ID.
+---
+tags:
+  - Properties
+parameters:
+  - in: path
+    name: id
+    description: The ID of the property
+    required: true
+    type: integer
+responses:
+  200:
+    description: Property details retrieved successfully
+  404:
+    description: Property not found

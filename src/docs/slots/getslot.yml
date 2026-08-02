@@ -1,0 +1,15 @@
+Get a single slot.
+---
+tags:
+  - Slots
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the slot
+responses:
+  200:
+    description: Slot details
+  404:
+    description: Slot not found

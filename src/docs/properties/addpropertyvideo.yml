@@ -1,0 +1,28 @@
+Add videos to a property.
+---
+tags:
+  - Properties
+security:
+  - Bearer: []
+consumes:
+  - multipart/form-data
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the property
+  - in: formData
+    name: file
+    required: true
+    type: file
+    description: Video file(s) to upload (mp4, mov, m4v, webm, avi, mkv). Repeat the field to upload multiple videos.
+responses:
+  201:
+    description: Videos uploaded
+  400:
+    description: No file added or invalid file
+  401:
+    description: Unauthorized
+  404:
+    description: Property not found

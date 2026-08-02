@@ -1,0 +1,51 @@
+Request a booking for a hotel, hall, event_center, or shortlet property.
+---
+tags:
+  - Bookings
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: property_id
+    required: true
+    type: integer
+    description: Id of the bookable property
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      properties:
+        room_id:
+          type: integer
+          example: 1
+          description: Required for hotel bookings
+        slot_id:
+          type: integer
+          example: 1
+          description: Required for hall/event_center bookings
+        guests:
+          type: integer
+          example: 2
+          description: Number of guests
+        check_in:
+          type: string
+          format: date
+          example: 2026-08-20
+          description: Check in date (required for hotel/shortlet)
+        check_out:
+          type: string
+          format: date
+          example: 2026-08-23
+          description: Check out date (required for hotel/shortlet)
+responses:
+  201:
+    description: Booking request created (status pending)
+  400:
+    description: Invalid data or missing required fields for the category
+  401:
+    description: Unauthorized
+  404:
+    description: Property, room, or slot not found
+  409:
+    description: Already booked for the selected dates or slot

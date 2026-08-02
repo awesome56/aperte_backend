@@ -6,31 +6,116 @@ from src.constants.http_status_codes import HTTP_200_OK
 from src.constants.http_status_codes import HTTP_201_CREATED
 from src.constants.http_status_codes import HTTP_202_ACCEPTED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
+from src.constants.http_status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from flask import Blueprint, request
-from src.database import User, Property, Message, PropertyImage, Request, Review, db
+from src.database import User, Property, Message, PropertyImage, PropertyVideo, Request, Review, db
 from flask import Blueprint, request, jsonify
 from src.constants.functions import adjust_url
+from src.constants.property_meta import is_valid_category, is_valid_purpose
+from src.constants.storage import upload_file, delete_file
 import validators
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from werkzeug.utils import secure_filename
-import os
-import time
 from datetime import datetime
 import json
 from sqlalchemy import func
+from flasgger import swag_from
 
 
 properties = Blueprint("property", __name__, url_prefix="/api/v1/properties")
 
 
+def to_float(value, label):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        raise ValueError("{} must be a valid number".format(label))
+
+
+def to_int(value, label):
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        raise ValueError("{} must be an whole number".format(label))
+
+
+def serialize_property(property):
+    property_images = PropertyImage.query.filter_by(property_id=property.id)
+    attachments = []
+    for property_image in property_images:
+        attachments.append({
+            'id': property_image.id,
+            'image_url': property_image.image_url,
+            'created_at': property_image.created_at,
+            'updated_at': property_image.updated_at,
+        })
+
+    property_videos = PropertyVideo.query.filter_by(property_id=property.id)
+    videos = []
+    for property_video in property_videos:
+        videos.append({
+            'id': property_video.id,
+            'video_url': property_video.video_url,
+            'created_at': property_video.created_at,
+            'updated_at': property_video.updated_at,
+        })
+
+    average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
+
+    user = User.query.filter_by(id=property.user_id).first()
+
+    return {
+        'id': property.id,
+        'user_id': property.user_id,
+        'title': property.title,
+        'description': property.description,
+        'category': property.category,
+        'property_type': property.property_type,
+        'purpose': property.purpose,
+        'attributes': json.loads(property.attributes) if property.attributes else {},
+        'price': property.price,
+        'area': property.area,
+        'bedrooms': property.bedrooms,
+        'bathrooms': property.bathrooms,
+        'location': property.location,
+        'city': property.city,
+        'state': property.state,
+        'country': property.country,
+        'latitude': property.latitude,
+        'logitude': property.longitude,
+        'year_built': property.year_built,
+        'amenities': json.loads(property.amenities) if property.amenities else {},
+        'images': attachments,
+        'videos': videos,
+        'negotiable': property.negotiable,
+        'available': property.available,
+        'approved': property.approved,
+        'created_at': property.created_at,
+        'updated_at': property.updated_at,
+        'average_rating': average_rating,
+        'username': user.username,
+    }
+
+
 @properties.post("/")
 @jwt_required()
+@swag_from('./docs/properties/createproperty.yml')
 def create_property():
     current_user = get_jwt_identity()
 
     title = request.get_json().get('title','')
     description = request.get_json().get('description','')
+    category = request.get_json().get('category', 'property')
     property_type = request.get_json().get('property_type','')
+    purpose = request.get_json().get('purpose', 'rent')
+    attributes = request.get_json().get('attributes')
     price = request.get_json().get('price')
     area = request.get_json().get('area')
     bedrooms = request.get_json().get('bedrooms')
@@ -47,6 +132,15 @@ def create_property():
 
     if not title or not description or not property_type or not price or not location or not city or not state or not country:
         return jsonify({'error': "Property title, description, property type, price, location, city, state, country must not be empty"}), HTTP_400_BAD_REQUEST 
+    
+    if not is_valid_category(category):
+        return jsonify({'error': "Category must be one of: property, land, hotel, hall, event_center, shortlet, other"}), HTTP_400_BAD_REQUEST
+    
+    if not is_valid_purpose(purpose):
+        return jsonify({'error': "Purpose must be one of: rent, sale, both"}), HTTP_400_BAD_REQUEST
+    
+    if attributes is not None and not isinstance(attributes, dict):
+        return jsonify({'error': "Attributes must be in json format"}), HTTP_400_BAD_REQUEST
     
     if len(title) < 3:
         return jsonify({'error': "Property title must be more than 2 characters"}), HTTP_400_BAD_REQUEST
@@ -67,63 +161,16 @@ def create_property():
         except ValueError:
             return jsonify({'error': "Price must be a valid number"}), HTTP_400_BAD_REQUEST
         
-    if isinstance(area, (int, float)):
-        # area is already a number (integer or float)
-        pass
-    else:
-        # area is a string, let's try to convert it to a number
-        try:
-            area = float(area)
-        except ValueError:
-            return jsonify({'error': "Area must be a valid number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(bedrooms, int):
-        # bedrooms is an integer
-        pass
-    else:
-        try:
-            bedrooms = int(bedrooms)
-        except ValueError:
-            return jsonify({'error': "Bedroom must be an whole number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(bathrooms, int):
-        # bathrooms is an integer
-        pass
-    else:
-        try:
-            bathrooms = int(bathrooms)
-        except ValueError:
-            return jsonify({'error': "Bathroom must be an whole number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(latitude, (int, float)):
-        # latitude is already a number (integer or float)
-        pass
-    else:
-        # latitude is a string, let's try to convert it to a number
-        try:
-            latitude = float(latitude)
-        except ValueError:
-            return jsonify({'error': "Latitude must be a valid number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(longitude, (int, float)):
-        # longitude is already a number (integer or float)
-        pass
-    else:
-        # longitude is a string, let's try to convert it to a number
-        try:
-            longitude = float(longitude)
-        except ValueError:
-            return jsonify({'error': "Longitude must be a valid number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(year_built, int):
-        # year_built is an integer
-        pass
-    else:
-        try:
-            year_built = int(year_built)
-        except ValueError:
-            return jsonify({'error': "Year built must be an whole number"}), HTTP_400_BAD_REQUEST
-        
+    try:
+        area = to_float(area, "Area")
+        bedrooms = to_int(bedrooms, "Bedroom")
+        bathrooms = to_int(bathrooms, "Bathroom")
+        latitude = to_float(latitude, "Latitude")
+        longitude = to_float(longitude, "Longitude")
+        year_built = to_int(year_built, "Year built")
+    except ValueError as e:
+        return jsonify({'error': str(e)}), HTTP_400_BAD_REQUEST
+
     if isinstance(negotiable, int) and (negotiable == 0 or negotiable == 1):
         # year_built is an integer
         pass
@@ -137,58 +184,20 @@ def create_property():
         # amenities_str = str(amenities)
     else:
         return jsonify({'error': "Amenities must be in json format"}), HTTP_400_BAD_REQUEST
+
+    attributes_str = json.dumps(attributes) if attributes else None
     
-    
-    property = Property(user_id=current_user, title=title, description=description, property_type=property_type, price=price, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, created_at=datetime.now(), updated_at=datetime.now())
+    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, created_at=datetime.now(), updated_at=datetime.now())
 
     db.session.add(property)
     db.session.commit()
 
-    property_images = PropertyImage.query.filter_by(property_id=property.id)
-    attachments = []
-    for property_image in property_images:
-        attachments.append({
-                    'id': property_image.id,
-                    'image_url': property_image.image_url,
-                    'created_at' : property_image.created_at,
-                    'updated_at' : property_image.updated_at,
-                })
-        
-    average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
-
-    user = User.query.filter_by(id=current_user).first()
-
-    return jsonify({
-        'id': property.id,
-        'user_id': property.user_id,
-        'title': property.title,
-        'description': property.description,
-        'property_type': property.property_type,
-        'price': property.price,
-        'area' : property.area,
-        'bedrooms' : property.bedrooms,
-        'bathrooms' : property.bathrooms,
-        'location' : property.location,
-        'city' : property.city,
-        'state' : property.state,
-        'country' : property.country,
-        'latitude' : property.latitude,
-        'logitude': property.longitude,
-        'year_built': property.year_built,
-        'amenities': json.loads(property.amenities),
-        'images' : attachments,
-        'negotiable' : property.negotiable,
-        'available' : property.available,
-        'approved': property.approved,
-        'created_at': property.created_at,
-        'updated_at': property.updated_at,
-        'average_rating' : average_rating,
-        'username' : user.username
-    }), HTTP_201_CREATED
+    return jsonify(serialize_property(property)), HTTP_201_CREATED
 
 
 @properties.post('/images/<int:id>')
 @jwt_required()
+@swag_from('./docs/properties/addpropertyimage.yml')
 def add_property_image(id):
     current_user = get_jwt_identity()
 
@@ -230,22 +239,13 @@ def add_property_image(id):
         # dp_value = 1 if idx == 0 else 0
         # Set dp=1 for the first image if no dp=1 row exists in the database, otherwise set dp=0 for all
         dp_value = 1 if idx == 0 and not dp_exists else 0
-        
-        # Append a unique micro timestamp to the filename
-        timestamp = int(time.time() * 1000000)
 
-        # Get the absolute path of the current working directory
-        app_root = os.path.dirname(os.path.abspath(__file__))
+        try:
+            image_url = upload_file(file, 'properties/{}/images'.format(current_user))
+        except Exception as e:
+            return jsonify({'error': str(e)}), HTTP_500_INTERNAL_SERVER_ERROR
 
-        user_directory = os.path.join(app_root, 'static', 'files', str(current_user),'properties')
-        os.makedirs(user_directory, exist_ok=True)
-        
-        file_path = os.path.join(user_directory, f'{timestamp}_{secure_filename(file.filename)}')
-
-        # Save the file to disk
-        file.save(file_path)
-
-        property_image = PropertyImage(property_id= property.id, image_url=file_path, dp=dp_value, created_at=datetime.now(), updated_at=datetime.now())
+        property_image = PropertyImage(property_id= property.id, image_url=image_url, dp=dp_value, created_at=datetime.now(), updated_at=datetime.now())
         db.session.add(property_image)
         db.session.commit()
 
@@ -271,6 +271,7 @@ def allowed_file_size(file):
 
 @properties.route('/images/<int:id>', methods=['DELETE'])
 @jwt_required()
+@swag_from('./docs/properties/deletepropertyimage.yml')
 def delete_image(id):
     current_user = get_jwt_identity()
 
@@ -287,72 +288,140 @@ def delete_image(id):
     db.session.delete(property_image)
     db.session.commit()
 
-    if os.path.exists(oldfile):
-        os.remove(oldfile)
+    try:
+        delete_file(oldfile)
+    except Exception as e:
+        return jsonify({'error': str(e)}), HTTP_500_INTERNAL_SERVER_ERROR
+
+    return jsonify({}), HTTP_204_NO_CONTENT
+
+
+@properties.post('/videos/<int:id>')
+@jwt_required()
+@swag_from('./docs/properties/addpropertyvideo.yml')
+def add_property_video(id):
+    current_user = get_jwt_identity()
+
+    property = Property.query.filter_by(id=id).first()
+
+    if not property:
+        return jsonify({'error': "Property not found"}), HTTP_404_NOT_FOUND
+    
+    if not property.user_id == current_user:
+        return jsonify({'error': "Unathorized"}), HTTP_401_UNAUTHORIZED
+
+    files = request.files.getlist('file')
+
+    if not files:
+        return jsonify({'error': "No file added"}),HTTP_400_BAD_REQUEST
+
+    for file in files:
+        if file:
+            if not allowed_video_file(file.filename):
+                return jsonify({'error': "Invalid file extension"}), HTTP_400_BAD_REQUEST
+
+            if not allowed_video_file_size(file):
+                return jsonify({'error': "File size is too large"}), HTTP_400_BAD_REQUEST
+            
+            file.seek(0)
+
+    attachments = []
+
+    for idx, file in enumerate(files):
+
+        file_size = len(file.read())
+        file.seek(0)
+
+        try:
+            video_url = upload_file(file, 'properties/{}/videos'.format(current_user))
+        except Exception as e:
+            return jsonify({'error': str(e)}), HTTP_500_INTERNAL_SERVER_ERROR
+
+        property_video = PropertyVideo(property_id=property.id, video_url=video_url, created_at=datetime.now(), updated_at=datetime.now())
+        db.session.add(property_video)
+        db.session.commit()
+
+        attachments.append({
+            'id': property_video.id,
+            'video_url': property_video.video_url,
+            'created_at': property_video.created_at,
+            'updated_at': property_video.updated_at,
+        })
+
+    return jsonify(attachments), HTTP_201_CREATED
+
+
+def allowed_video_file(filename):
+    ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv'}
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
+
+
+def allowed_video_file_size(file):
+    MAX_VIDEO_CONTENT_LENGTH = 100 * 1024 * 1024
+    return len(file.read()) <= MAX_VIDEO_CONTENT_LENGTH
+
+
+@properties.route('/videos/<int:id>', methods=['DELETE'])
+@jwt_required()
+@swag_from('./docs/properties/deletepropertyvideo.yml')
+def delete_video(id):
+    current_user = get_jwt_identity()
+
+    property_video = PropertyVideo.query.filter_by(id=id).first()
+    if not property_video:
+        return jsonify({'message': "Video not found"}), HTTP_404_NOT_FOUND
+    
+    property = Property.query.filter_by(id=property_video.property_id).first()
+    if not property.user_id == current_user:
+        return jsonify({'error': "Unauthorized"}), HTTP_401_UNAUTHORIZED
+
+    oldfile = property_video.video_url
+
+    db.session.delete(property_video)
+    db.session.commit()
+
+    try:
+        delete_file(oldfile)
+    except Exception as e:
+        return jsonify({'error': str(e)}), HTTP_500_INTERNAL_SERVER_ERROR
 
     return jsonify({}), HTTP_204_NO_CONTENT
 
 
 @properties.get("/<int:id>")
+@swag_from('./docs/properties/getproperty.yml')
 def get_property(id):
 
     property = Property.query.filter_by(id=id).first()
 
     if not property:
         return jsonify({'message': "Property not found"}),HTTP_404_NOT_FOUND
-    
-    property_images = PropertyImage.query.filter_by(property_id=property.id)
-    attachments = []
-    for property_image in property_images:
-        attachments.append({
-                    'id': property_image.id,
-                    'image_url': property_image.image_url,
-                    'created_at' : property_image.created_at,
-                    'updated_at' : property_image.updated_at,
-                })
-        
-    average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
 
-    user = User.query.filter_by(id=property.user_id).first()
-
-    return jsonify({
-        'id': property.id,
-        'user_id': property.user_id,
-        'title': property.title,
-        'description': property.description,
-        'property_type': property.property_type,
-        'price': property.price,
-        'area' : property.area,
-        'bedrooms' : property.bedrooms,
-        'bathrooms' : property.bathrooms,
-        'location' : property.location,
-        'city' : property.city,
-        'state' : property.state,
-        'country' : property.country,
-        'latitude' : property.latitude,
-        'logitude': property.longitude,
-        'year_built': property.year_built,
-        'amenities': json.loads(property.amenities),
-        'images' : attachments,
-        'negotiable' : property.negotiable,
-        'available' : property.available,
-        'approved': property.approved,
-        'created_at': property.created_at,
-        'updated_at': property.updated_at,
-        'average_rating' : average_rating,
-        'username' : user.username
-    }), HTTP_200_OK
+    return jsonify(serialize_property(property)), HTTP_200_OK
 
 
 @properties.route('/user/<int:id>/', methods=['GET'])
+@swag_from('./docs/properties/getuserproperties.yml')
 def get_properties(id):
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
+    category = request.args.get('category')
+    purpose = request.args.get('purpose')
+    property_type = request.args.get('property_type')
 
     if not User.query.filter_by(id=id).first():
         return jsonify({'error': "User not found"}), HTTP_404_NOT_FOUND
 
-    properties=Property.query.filter_by(user_id=id).paginate(page=page, per_page=per_page)
+    query = Property.query.filter_by(user_id=id)
+    if category:
+        query = query.filter_by(category=category)
+    if purpose:
+        query = query.filter_by(purpose=purpose)
+    if property_type:
+        query = query.filter_by(property_type=property_type)
+
+    properties = query.paginate(page=page, per_page=per_page)
 
     data = []
 
@@ -370,9 +439,14 @@ def get_properties(id):
         data.append({
             'id': property.id,
             'title': property.title,
+            'category': property.category,
             'property_type': property.property_type,
+            'purpose': property.purpose,
             'price': property.price,
             'location': property.location,
+            'city': property.city,
+            'state': property.state,
+            'country': property.country,
             'dp': dp_url,  # Use dp_url to access the image_url
             'approved': property.approved,
             'available': property.available,
@@ -395,9 +469,90 @@ def get_properties(id):
     return jsonify({'data': data, 'meta':meta}), HTTP_200_OK
 
 
+@properties.get("/")
+@swag_from('./docs/properties/browseproperties.yml')
+def browse_properties():
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    category = request.args.get('category')
+    purpose = request.args.get('purpose')
+    property_type = request.args.get('property_type')
+    city = request.args.get('city')
+    state = request.args.get('state')
+    country = request.args.get('country')
+    min_price = request.args.get('min_price', type=float)
+    max_price = request.args.get('max_price', type=float)
+
+    query = Property.query
+
+    if category:
+        query = query.filter_by(category=category)
+    if purpose:
+        query = query.filter_by(purpose=purpose)
+    if property_type:
+        query = query.filter_by(property_type=property_type)
+    if city:
+        query = query.filter(Property.city.ilike('%{}%'.format(city)))
+    if state:
+        query = query.filter(Property.state.ilike('%{}%'.format(state)))
+    if country:
+        query = query.filter(Property.country.ilike('%{}%'.format(country)))
+    if min_price is not None:
+        query = query.filter(Property.price >= min_price)
+    if max_price is not None:
+        query = query.filter(Property.price <= max_price)
+
+    query = query.order_by(Property.created_at.desc())
+    properties = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    data = []
+
+    for property in properties.items:
+        dp = PropertyImage.query.filter_by(property_id=property.id, dp=1).first()
+        dp_url = dp.image_url if dp else ""
+
+        average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
+
+        user = User.query.filter_by(id=property.user_id).first()
+
+        data.append({
+            'id': property.id,
+            'user_id': property.user_id,
+            'title': property.title,
+            'category': property.category,
+            'property_type': property.property_type,
+            'purpose': property.purpose,
+            'price': property.price,
+            'location': property.location,
+            'city': property.city,
+            'state': property.state,
+            'country': property.country,
+            'dp': dp_url,
+            'approved': property.approved,
+            'available': property.available,
+            'created_at': property.created_at,
+            'updated_at': property.updated_at,
+            'average_rating': average_rating,
+            'username': user.username
+        })
+
+    meta={
+        "page": properties.page,
+        "pages": properties.pages,
+        "total_count": properties.total,
+        "prev_page": properties.prev_num,
+        "next_page": properties.next_num,
+        "has_next": properties.has_next,
+        "has_prev": properties.has_prev
+    }
+
+    return jsonify({'data': data, 'meta':meta}), HTTP_200_OK
+
+
 @properties.put('/<int:id>')
 @properties.patch('/<int:id>')
 @jwt_required()
+@swag_from('./docs/properties/editproperty.yml')
 def edit_property(id):
 
     current_user = get_jwt_identity()
@@ -412,7 +567,10 @@ def edit_property(id):
 
     title = request.get_json().get('title','')
     description = request.get_json().get('description','')
+    category = request.get_json().get('category', property.category)
     property_type = request.get_json().get('property_type','')
+    purpose = request.get_json().get('purpose', property.purpose)
+    attributes = request.get_json().get('attributes')
     price = request.get_json().get('price')
     area = request.get_json().get('area')
     bedrooms = request.get_json().get('bedrooms')
@@ -426,10 +584,19 @@ def edit_property(id):
     year_built = request.get_json().get('year_built')
     amenities = request.get_json().get('amenities')
     negotiable = request.get_json().get('negotiable', 0)
-    available = request.get_json().get('negotiable', 1)
+    available = request.get_json().get('available', property.available)
 
     if not title or not description or not property_type or not price or not location or not city or not state or not country:
         return jsonify({'error': "Title, Description, Property type, Price, Location, City, State, Country must not be empty"}), HTTP_400_BAD_REQUEST 
+    
+    if not is_valid_category(category):
+        return jsonify({'error': "Category must be one of: property, land, hotel, hall, event_center, shortlet, other"}), HTTP_400_BAD_REQUEST
+    
+    if not is_valid_purpose(purpose):
+        return jsonify({'error': "Purpose must be one of: rent, sale, both"}), HTTP_400_BAD_REQUEST
+    
+    if attributes is not None and not isinstance(attributes, dict):
+        return jsonify({'error': "Attributes must be in json format"}), HTTP_400_BAD_REQUEST
     
     if len(title) < 3:
         return jsonify({'error': "Title must be more than 2 characters"}), HTTP_400_BAD_REQUEST
@@ -450,63 +617,16 @@ def edit_property(id):
         except ValueError:
             return jsonify({'error': "Price must be a valid number"}), HTTP_400_BAD_REQUEST
         
-    if isinstance(area, (int, float)):
-        # area is already a number (integer or float)
-        pass
-    else:
-        # area is a string, let's try to convert it to a number
-        try:
-            area = float(area)
-        except ValueError:
-            return jsonify({'error': "Area must be a valid number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(bedrooms, int):
-        # bedrooms is an integer
-        pass
-    else:
-        try:
-            bedrooms = int(bedrooms)
-        except ValueError:
-            return jsonify({'error': "Bedroom must be an whole number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(bathrooms, int):
-        # bathrooms is an integer
-        pass
-    else:
-        try:
-            bathrooms = int(bathrooms)
-        except ValueError:
-            return jsonify({'error': "Bathroom must be an whole number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(latitude, (int, float)):
-        # latitude is already a number (integer or float)
-        pass
-    else:
-        # latitude is a string, let's try to convert it to a number
-        try:
-            latitude = float(latitude)
-        except ValueError:
-            return jsonify({'error': "Latitude must be a valid number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(longitude, (int, float)):
-        # longitude is already a number (integer or float)
-        pass
-    else:
-        # longitude is a string, let's try to convert it to a number
-        try:
-            longitude = float(longitude)
-        except ValueError:
-            return jsonify({'error': "Longitude must be a valid number"}), HTTP_400_BAD_REQUEST
-        
-    if isinstance(year_built, int):
-        # year_built is an integer
-        pass
-    else:
-        try:
-            year_built = int(year_built)
-        except ValueError:
-            return jsonify({'error': "Year built must be an whole number"}), HTTP_400_BAD_REQUEST
-        
+    try:
+        area = to_float(area, "Area")
+        bedrooms = to_int(bedrooms, "Bedroom")
+        bathrooms = to_int(bathrooms, "Bathroom")
+        latitude = to_float(latitude, "Latitude")
+        longitude = to_float(longitude, "Longitude")
+        year_built = to_int(year_built, "Year built")
+    except ValueError as e:
+        return jsonify({'error': str(e)}), HTTP_400_BAD_REQUEST
+
     if isinstance(available, int) and (available == 0 or available == 1):
         # year_built is an integer
         pass
@@ -526,10 +646,16 @@ def edit_property(id):
         # amenities_str = str(amenities)
     else:
         return jsonify({'error': "Amenities must be in json format"}), HTTP_400_BAD_REQUEST
+
+    attributes_str = json.dumps(attributes) if attributes else None
     
     property.title=title
     property.description=description
+    property.category=category
     property.property_type=property_type
+    property.purpose=purpose
+    if attributes_str is not None:
+        property.attributes=attributes_str
     property.price=price
     property.area=area
     property.bedrooms=bedrooms
@@ -548,44 +674,4 @@ def edit_property(id):
 
     db.session.commit()
 
-    property_images = PropertyImage.query.filter_by(property_id=property.id)
-    attachments = []
-    for property_image in property_images:
-        attachments.append({
-                    'id': property_image.id,
-                    'image_url': property_image.image_url,
-                    'created_at' : property_image.created_at,
-                    'updated_at' : property_image.updated_at,
-                })
-        
-    average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
-
-    user = User.query.filter_by(id=property.user_id).first()
-
-    return jsonify({
-        'id': property.id,
-        'user_id': property.user_id,
-        'title': property.title,
-        'description': property.description,
-        'property_type': property.property_type,
-        'price': property.price,
-        'area' : property.area,
-        'bedrooms' : property.bedrooms,
-        'bathrooms' : property.bathrooms,
-        'location' : property.location,
-        'city' : property.city,
-        'state' : property.state,
-        'country' : property.country,
-        'latitude' : property.latitude,
-        'logitude': property.longitude,
-        'year_built': property.year_built,
-        'amenities': json.loads(property.amenities),
-        'images' : attachments,
-        'negotiable' : property.negotiable,
-        'available' : property.available,
-        'approved': property.approved,
-        'created_at': property.created_at,
-        'updated_at': property.updated_at,
-        'average_rating' : average_rating,
-        'username' : user.username
-    }), HTTP_200_OK
+    return jsonify(serialize_property(property)), HTTP_200_OK

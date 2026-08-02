@@ -1,0 +1,25 @@
+Get a paginated list of all reviews for a property.
+---
+tags:
+  - Reviews
+parameters:
+  - in: path
+    name: id
+    description: The ID of the property whose reviews should be returned
+    required: true
+    type: integer
+  - in: query
+    name: page
+    description: Page number
+    required: false
+    type: integer
+    default: 1
+  - in: query
+    name: per_page
+    description: Number of items per page
+    required: false
+    type: integer
+    default: 20
+responses:
+  200:
+    description: Paginated list of property reviews

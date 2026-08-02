@@ -1,0 +1,19 @@
+Delete a video from a property.
+---
+tags:
+  - Properties
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the video
+responses:
+  204:
+    description: Video deleted
+  401:
+    description: Unauthorized
+  404:
+    description: Video not found

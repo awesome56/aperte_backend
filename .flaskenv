@@ -2,3 +2,10 @@ FLASK_ENV='production'
 FLASK_APP='src'
 DATABASE_URL='sqlite:///revap.db'
 JWT_SECRET_KEY='\xbanD\x96\x0b\xce\xbe+'
+
+# Cloudflare R2 Object Storage
+R2_ACCOUNT_ID='882aa99364ba4056ecc25732edecd7f8'
+R2_ACCESS_KEY_ID='9c3d1b874701db07cbdf294f6ce127b6'
+R2_SECRET_ACCESS_KEY='25b6a3441cb2037845c3c4b2b09c750de5a96ab65992a0ed58f60c256b4f5757'
+R2_BUCKET_NAME='aparte-uploads'
+R2_PUBLIC_BASE_URL='https://pub-c59de216b0df4c86a3cb259656991522.r2.dev'

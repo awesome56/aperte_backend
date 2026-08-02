@@ -1,0 +1,32 @@
+Update a booking status (owner confirms/completes, owner or customer cancels).
+---
+tags:
+  - Bookings
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the booking
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, completed]
+          example: confirmed
+          description: New status of the booking
+responses:
+  200:
+    description: Booking status updated
+  400:
+    description: Invalid status or invalid transition
+  401:
+    description: Unauthorized
+  404:
+    description: Booking not found

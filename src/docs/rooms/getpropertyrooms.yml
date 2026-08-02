@@ -1,0 +1,15 @@
+Get all rooms of a property.
+---
+tags:
+  - Rooms
+parameters:
+  - in: path
+    name: property_id
+    required: true
+    type: integer
+    description: Id of the property
+responses:
+  200:
+    description: List of rooms
+  404:
+    description: Property not found

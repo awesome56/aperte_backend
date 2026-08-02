@@ -1,0 +1,15 @@
+Get a single booking.
+---
+tags:
+  - Bookings
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the booking
+responses:
+  200:
+    description: Booking details
+  404:
+    description: Booking not found

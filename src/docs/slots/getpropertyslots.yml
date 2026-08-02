@@ -1,0 +1,28 @@
+Get all slots of a property.
+---
+tags:
+  - Slots
+parameters:
+  - in: path
+    name: property_id
+    required: true
+    type: integer
+    description: Id of the property
+  - in: query
+    name: date
+    required: false
+    type: string
+    format: date
+    description: Filter by date (YYYY-MM-DD)
+  - in: query
+    name: status
+    required: false
+    type: string
+    description: Filter by status (available, pending, booked)
+responses:
+  200:
+    description: List of slots
+  400:
+    description: Invalid date or status
+  404:
+    description: Property not found

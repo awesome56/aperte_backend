@@ -1,0 +1,40 @@
+Create a review for a property.
+---
+tags:
+  - Reviews
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    description: The ID of the property to review
+    required: true
+    type: integer
+  - name: body
+    description: The body should contain the review details
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+          example: "Great place"
+        content:
+          type: string
+          example: "Spacious and well maintained apartment."
+        rating:
+          type: number
+          example: 4
+responses:
+  201:
+    description: Review created successfully
+  400:
+    description: Fails to create review due to invalid or missing data
+  401:
+    description: Fails to create review due to authentication error
+  404:
+    description: Property not found

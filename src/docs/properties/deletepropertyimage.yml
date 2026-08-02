@@ -1,0 +1,19 @@
+Delete an image from a property owned by the authenticated user.
+---
+tags:
+  - Properties
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    description: The ID of the property image to delete
+    required: true
+    type: integer
+responses:
+  204:
+    description: Image deleted successfully
+  401:
+    description: Property does not belong to the authenticated user
+  404:
+    description: Image not found

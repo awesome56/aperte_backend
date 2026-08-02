@@ -1,0 +1,97 @@
+Create a new property listing for the authenticated user.
+---
+tags:
+  - Properties
+security:
+  - Bearer: []
+parameters:
+  - name: body
+    description: The body should contain the property listing details
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - title
+        - description
+        - property_type
+        - price
+        - location
+        - city
+        - state
+        - country
+      properties:
+        title:
+          type: string
+          example: "2 Bedroom Flat in Lekki"
+        description:
+          type: string
+          example: "A cozy 2 bedroom flat with a modern kitchen and balcony."
+        category:
+          type: string
+          description: One of property, land, hotel, hall, event_center, shortlet, other
+          example: "property"
+        property_type:
+          type: string
+          description: Specific type e.g. apartment, house, land, hotel, hall, event_center, shortlet
+          example: "apartment"
+        purpose:
+          type: string
+          description: One of rent, sale, both
+          example: "rent"
+        attributes:
+          type: object
+          description: Flexible metadata specific to the category (e.g. plot_size for land, capacity for hall, star_rating for hotel, minimum_stay_nights for shortlet)
+          example:
+            furnished: true
+            title_document: "C of O"
+        price:
+          type: number
+          example: 2500000
+        area:
+          type: number
+          example: 120
+        bedrooms:
+          type: integer
+          example: 2
+        bathrooms:
+          type: integer
+          example: 2
+        location:
+          type: string
+          example: "Lekki Phase 1"
+        city:
+          type: string
+          example: "Lagos"
+        state:
+          type: string
+          example: "Lagos"
+        country:
+          type: string
+          example: "Nigeria"
+        latitude:
+          type: number
+          example: 6.4478
+        longitude:
+          type: number
+          example: 3.4723
+        year_built:
+          type: integer
+          example: 2020
+        amenities:
+          type: object
+          example:
+            parking: true
+            wifi: true
+        negotiable:
+          type: integer
+          example: 1
+responses:
+  201:
+    description: Property created successfully
+  400:
+    description: Fails to create property due to invalid or missing data
+  401:
+    description: Fails to create property due to authentication error
+  409:
+    description: A property with the same title already exists for this user

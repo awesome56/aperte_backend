@@ -1,0 +1,24 @@
+Get a paginated list of all reviews written by the authenticated user.
+---
+tags:
+  - Reviews
+security:
+  - Bearer: []
+parameters:
+  - in: query
+    name: page
+    description: Page number
+    required: false
+    type: integer
+    default: 1
+  - in: query
+    name: per_page
+    description: Number of items per page
+    required: false
+    type: integer
+    default: 20
+responses:
+  200:
+    description: Paginated list of user reviews
+  400:
+    description: Error getting reviews

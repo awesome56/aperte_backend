@@ -39,6 +39,7 @@ class User(db.Model):
     notifications_sent = db.relationship('Notification', backref='action_user', foreign_keys=[Notification.action_user_id])
     notifications_received = db.relationship('Notification', backref='user', foreign_keys=[Notification.user_id], cascade='all, delete-orphan')
     favorites = db.relationship('Favorite', backref='user', cascade='all, delete-orphan')
+    bookings = db.relationship('Booking', backref='customer', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'User ID: {self.id} - Username: {self.username}'
@@ -64,7 +65,10 @@ class Property(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(50), nullable=False, default='property')
     property_type = db.Column(db.String(50), nullable=False)
+    purpose = db.Column(db.String(20), nullable=False, default='rent')
+    attributes = db.Column(db.Text, nullable=True)
     price = db.Column(db.Float, nullable=False)
     area = db.Column(db.Float, nullable=True)  # Total area in square meters
     bedrooms = db.Column(db.Integer, nullable=True)
@@ -84,8 +88,12 @@ class Property(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
     
     images = db.relationship('PropertyImage', backref='property', lazy='dynamic', cascade='all, delete-orphan')
+    videos = db.relationship('PropertyVideo', backref='property', lazy='dynamic', cascade='all, delete-orphan')
     reviews = db.relationship('Review', backref='property', cascade='all, delete-orphan')
     messages = db.relationship('Message', backref='property', cascade='all, delete-orphan')
+    rooms = db.relationship('Room', backref='property', cascade='all, delete-orphan')
+    slots = db.relationship('Slot', backref='property', cascade='all, delete-orphan')
+    bookings = db.relationship('Booking', backref='property', cascade='all, delete-orphan')
 
     def __repr__(self):
         return f'Property ID: {self.id} - Title: {self.title}'
@@ -158,6 +166,17 @@ class PropertyImage(db.Model):
         return f'Image ID: {self.id} - Property ID: {self.property_id}'
 
 
+class PropertyVideo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)
+    video_url = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
+
+    def __repr__(self):
+        return f'Video ID: {self.id} - Property ID: {self.property_id}'
+
+
 class Review(db.Model):
     __tablename__ = 'review'
 
@@ -172,3 +191,59 @@ class Review(db.Model):
 
     def __repr__(self):
         return f'Review ID: {self.id} - Title: {self.title}'
+
+
+class Room(db.Model):
+    __tablename__ = 'room'
+
+    id = db.Column(db.Integer, primary_key=True)
+    property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)
+    room_type = db.Column(db.String(50), nullable=False)
+    beds = db.Column(db.Integer, default=1)
+    price = db.Column(db.Float, nullable=False)
+    amenities = db.Column(db.Text, nullable=True)
+    available = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
+
+    def __repr__(self):
+        return f'Room ID: {self.id} - Type: {self.room_type}'
+
+
+class Slot(db.Model):
+    __tablename__ = 'slot'
+
+    id = db.Column(db.Integer, primary_key=True)
+    property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    start_time = db.Column(db.String(10), nullable=False)
+    end_time = db.Column(db.String(10), nullable=False)
+    price = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='available')
+    booked_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
+
+    def __repr__(self):
+        return f'Slot ID: {self.id} - Date: {self.date}'
+
+
+class Booking(db.Model):
+    __tablename__ = 'booking'
+
+    id = db.Column(db.Integer, primary_key=True)
+    property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)
+    room_id = db.Column(db.Integer, db.ForeignKey('room.id', ondelete='SET NULL'), nullable=True)
+    slot_id = db.Column(db.Integer, db.ForeignKey('slot.id', ondelete='SET NULL'), nullable=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    check_in = db.Column(db.Date, nullable=True)
+    check_out = db.Column(db.Date, nullable=True)
+    guests = db.Column(db.Integer, default=1)
+    nights = db.Column(db.Integer, nullable=True)
+    total = db.Column(db.Float, nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
+
+    def __repr__(self):
+        return f'Booking ID: {self.id} - Status: {self.status}'

@@ -16,11 +16,13 @@ import os
 import time
 from datetime import datetime
 from typing import Union
+from flasgger import swag_from
 
 reviews = Blueprint("review", __name__, url_prefix="/api/v1/reviews")
 
 @reviews.post('/<int:id>')
 @jwt_required()
+@swag_from('./docs/reviews/createreview.yml')
 def create_review(id):
     current_user = get_jwt_identity()
 
@@ -74,6 +76,7 @@ def create_review(id):
 
 
 @reviews.get("/<int:id>")
+@swag_from('./docs/reviews/getreview.yml')
 def get_review(id):
 
     review = Review.query.filter_by(id=id).first()
@@ -97,6 +100,7 @@ def get_review(id):
 
 
 @reviews.route('/properties/<int:id>', methods=['GET'])
+@swag_from('./docs/reviews/getpropertyreviews.yml')
 def get_property_reviews(id):
 
     page = request.args.get('page', 1, type=int)
@@ -137,6 +141,7 @@ def get_property_reviews(id):
 
 @reviews.route('/', methods=['GET'])
 @jwt_required()
+@swag_from('./docs/reviews/getuserreviews.yml')
 def get_user_reviews():
     current_user = get_jwt_identity()
 
@@ -179,6 +184,7 @@ def get_user_reviews():
 
 @reviews.route('/<int:id>', methods=['DELETE'])
 @jwt_required()
+@swag_from('./docs/reviews/deletereview.yml')
 def delete_review(id):
     current_user = get_jwt_identity()
 

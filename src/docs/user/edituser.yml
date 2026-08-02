@@ -1,42 +1,59 @@
-edit_user:
-  put:
-    tags:
-      - User
-    summary: Edit User
-    operationId: editUser
-    security:
-      - jwt: []
-    requestBody:
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              full_name:
-                type: string
-              # email:
-              #   type: string
-            required:
-              - full_name
-    responses:
-      200:
-        description: User successfully edited
-        content:
-          application/json:
-            example:
-              id: 1
-              username: john_doe
-              email: john@example.com
-              full_name: John Doe
-              phone_number: "+123456789"
-              profile_picture: "/static/files/1/1625155481234_profile.jpg"
-              email_verified: 1
-              phone_number_verified: 1
-              created_at: "2023-11-09T12:34:56.789Z"
-              updated_at: "2023-11-10T12:34:56.789Z"
-      404:
-        description: User not found
-        content:
-          application/json:
-            example:
-              message: User not found
+Edit the profile of the authenticated user.
+---
+tags:
+  - User
+security:
+  - Bearer: []
+parameters:
+  - name: body
+    description: The body should contain the details to update
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - full_name
+      properties:
+        full_name:
+          type: string
+          example: "John Doe"
+responses:
+  200:
+    description: User successfully edited
+    schema:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: "johndoe"
+        email:
+          type: string
+          example: "john@example.com"
+        full_name:
+          type: string
+          example: "John Doe"
+        phone_number:
+          type: integer
+          example: 2348123456789
+        profile_picture:
+          type: string
+          example: "/static/files/1/1625155481234_profile.jpg"
+        email_verified:
+          type: integer
+          example: 1
+        phone_number_verified:
+          type: integer
+          example: 1
+        created_at:
+          type: string
+          example: "2023-11-09T12:34:56.789Z"
+        updated_at:
+          type: string
+          example: "2023-11-10T12:34:56.789Z"
+  400:
+    description: Fullname is required
+  404:
+    description: User not found

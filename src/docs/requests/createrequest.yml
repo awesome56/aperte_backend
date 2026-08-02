@@ -1,0 +1,74 @@
+Create a new property request for the authenticated user.
+---
+tags:
+  - Requests
+security:
+  - Bearer: []
+parameters:
+  - name: body
+    description: The body should contain the request details
+    in: body
+    required: true
+    schema:
+      type: object
+      required:
+        - title
+        - description
+        - property_type
+      properties:
+        title:
+          type: string
+          example: "Looking for 3 bedroom duplex"
+        description:
+          type: string
+          example: "Searching for a 3 bedroom duplex within a secure estate."
+        property_type:
+          type: string
+          example: "duplex"
+        sub_category:
+          type: string
+          example: "detached"
+        min_price:
+          type: number
+          example: 5000000
+        max_price:
+          type: number
+          example: 10000000
+        area:
+          type: number
+          example: 200
+        bedrooms:
+          type: integer
+          example: 3
+        bathrooms:
+          type: integer
+          example: 4
+        location:
+          type: string
+          example: "Ajah"
+        city:
+          type: string
+          example: "Lagos"
+        state:
+          type: string
+          example: "Lagos"
+        country:
+          type: string
+          example: "Nigeria"
+        year_built:
+          type: integer
+          example: 2021
+        amenities:
+          type: object
+          example:
+            parking: true
+            security: true
+responses:
+  201:
+    description: Request created successfully
+  400:
+    description: Fails to create request due to invalid or missing data
+  401:
+    description: Fails to create request due to authentication error
+  409:
+    description: A request with the same title already exists for this user
