@@ -88,7 +88,11 @@ def register():
     msg = Message(subject='Verify Email', recipients=[email])
     msg.body = message
 
-    mail.send(msg)
+    try:
+        mail.send(msg)
+    except Exception as e:
+        # Email delivery failure must not fail registration.
+        print('Failed to send verification email to {}: {}'.format(email, e))
 
     return jsonify({
         'message': "User created",
@@ -149,7 +153,10 @@ def login():
                 msg = Message(subject='Verify Email', recipients=[user.email])
                 msg.body = message
 
-                mail.send(msg)
+                try:
+                    mail.send(msg)
+                except Exception as e:
+                    print('Failed to send email: {}'.format(e))
 
                 return jsonify({'msg': "Pls verify email"}), HTTP_200_OK
             
@@ -227,7 +234,10 @@ def verify_password(email):
     msg = Message(subject='Email verification successful', recipients=[email])
     msg.body = "Your email verification is successful"
 
-    mail.send(msg)
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print('Failed to send email: {}'.format(e))
 
     refresh = create_refresh_token(identity=user.id)
     access = create_access_token(identity=user.id)
@@ -295,7 +305,10 @@ def resend_verify(email):
     msg = Message(subject='Verify Email', recipients=[email])
     msg.body = message
 
-    mail.send(msg)
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print('Failed to send email: {}'.format(e))
 
     return jsonify({'msg': "Pls verify email"}), HTTP_200_OK
 
@@ -359,7 +372,10 @@ def forgot_password(email):
     msg = Message(subject='Password Reset', recipients=[email])
     msg.body = message
 
-    mail.send(msg)
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print('Failed to send email: {}'.format(e))
 
     return jsonify({'msg': "Token sent to email"}), HTTP_201_CREATED
 
@@ -419,6 +435,9 @@ def reset_password(email):
     msg = Message(subject='Password Reset Successful', recipients=[email])
     msg.body = "Your password as been successfully changed"
 
-    mail.send(msg)
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print('Failed to send email: {}'.format(e))
 
     return jsonify({'msg': "Password change successful"}), HTTP_200_OK
