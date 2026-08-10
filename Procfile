@@ -1,1 +1,1 @@
-web: gunicorn src.runner:application
+web: gunicorn -c gunicorn_config.py src.runner:application
