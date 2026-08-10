@@ -127,7 +127,6 @@ All endpoints are prefixed with `/api/v1`.
 
 ## Cloudflare R2 Object Storage
 All file uploads (property images, property videos, and user profile pictures) are stored in Cloudflare R2 instead of the local filesystem. Configuration is via environment variables (in `.flaskenv` locally, or the host's environment on deployment):
-
 | Variable | Description |
 | -------- | ----------- |
 | `R2_ACCOUNT_ID` | Cloudflare account ID (used to build the S3-compatible endpoint) |
@@ -137,3 +136,15 @@ All file uploads (property images, property videos, and user profile pictures) a
 | `R2_PUBLIC_BASE_URL` | Public base URL for objects (custom domain or the bucket's `.r2.dev` URL) |
 
 The R2 S3-compatible endpoint is built as `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`. Objects are stored under keys like `properties/<user_id>/images/...`, `properties/<user_id>/videos/...`, and `users/<user_id>/dp/...`, and the full public URL is saved in the database (`image_url`, `video_url`, `profile_picture`). Legacy local filesystem paths are ignored on delete, so pre-existing data is unaffected.
+
+## Production (gunicorn)
+The API is I/O-bound (mostly waits on Postgres), so `gunicorn_config.py` runs one
+worker per CPU core with 4 threads each (`gthread` worker). On a 4-core box that's
+4 processes × 4 threads = 16 concurrent requests without leaving cores idle.
+
+```bash
+gunicorn -c gunicorn_config.py "src.runner:application"
+```
+
+Configurable via env vars: `GUNICORN_WORKERS`, `GUNICORN_THREADS`, `GUNICORN_BIND`,
+`GUNICORN_TIMEOUT`, `GUNICORN_LOG_LEVEL`.
