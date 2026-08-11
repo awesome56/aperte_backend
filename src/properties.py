@@ -106,6 +106,9 @@ def serialize_property(property):
         'owner_full_name': user.full_name,
         'owner_email': user.email,
         'owner_phone_number': user.phone_number,
+        'contact_phone': property.contact_phone,
+        'contact_email': property.contact_email,
+        'contact_website': property.contact_website,
     }
 
 
@@ -133,6 +136,9 @@ def create_property():
     latitude = request.get_json().get('latitude')
     longitude = request.get_json().get('longitude')
     year_built = request.get_json().get('year_built')
+    contact_phone = request.get_json().get('contact_phone')
+    contact_email = request.get_json().get('contact_email')
+    contact_website = request.get_json().get('contact_website')
     amenities = request.get_json().get('amenities')
     negotiable = request.get_json().get('negotiable', 0)
 
@@ -193,7 +199,7 @@ def create_property():
 
     attributes_str = json.dumps(attributes) if attributes else None
     
-    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, currency=currency, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, created_at=datetime.now(), updated_at=datetime.now())
+    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, currency=currency, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, contact_phone=contact_phone, contact_email=contact_email, contact_website=contact_website, created_at=datetime.now(), updated_at=datetime.now())
 
     db.session.add(property)
     db.session.commit()
@@ -499,6 +505,9 @@ def get_properties(id):
             'owner_full_name': user.full_name,
             'owner_email': user.email,
             'owner_phone_number': user.phone_number,
+            'contact_phone': property.contact_phone,
+            'contact_email': property.contact_email,
+            'contact_website': property.contact_website,
         })
 
     meta={
@@ -583,6 +592,9 @@ def browse_properties():
             'owner_full_name': user.full_name,
             'owner_email': user.email,
             'owner_phone_number': user.phone_number,
+            'contact_phone': property.contact_phone,
+            'contact_email': property.contact_email,
+            'contact_website': property.contact_website,
         })
 
     meta={
@@ -632,6 +644,9 @@ def edit_property(id):
     latitude = request.get_json().get('latitude')
     longitude = request.get_json().get('longitude')
     year_built = request.get_json().get('year_built')
+    contact_phone = request.get_json().get('contact_phone', property.contact_phone)
+    contact_email = request.get_json().get('contact_email', property.contact_email)
+    contact_website = request.get_json().get('contact_website', property.contact_website)
     amenities = request.get_json().get('amenities')
     negotiable = request.get_json().get('negotiable', 0)
     available = request.get_json().get('available', property.available)
@@ -721,6 +736,9 @@ def edit_property(id):
     property.year_built=year_built
     property.amenities=amenities_str 
     property.available=available
+    property.contact_phone=contact_phone
+    property.contact_email=contact_email
+    property.contact_website=contact_website
     property.updated_at=datetime.now()
 
     db.session.commit()

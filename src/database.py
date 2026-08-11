@@ -85,6 +85,9 @@ class Property(db.Model):
     amenities = db.Column(db.Text, nullable=True)  # Store amenities as a JSON or list
     approved = db.Column(db.Integer, default=0)
     available = db.Column(db.Integer, default=1)
+    contact_phone = db.Column(db.String(30), nullable=True)
+    contact_email = db.Column(db.String(255), nullable=True)
+    contact_website = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now())
     updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
     
