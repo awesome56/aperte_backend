@@ -103,6 +103,9 @@ def serialize_property(property):
         'updated_at': property.updated_at,
         'average_rating': average_rating,
         'username': user.username,
+        'owner_full_name': user.full_name,
+        'owner_email': user.email,
+        'owner_phone_number': user.phone_number,
     }
 
 
@@ -492,7 +495,10 @@ def get_properties(id):
             'created_at': property.created_at,
             'updated_at': property.updated_at,
             'average_rating' : average_rating,
-            'username' : user.username
+            'username' : user.username,
+            'owner_full_name': user.full_name,
+            'owner_email': user.email,
+            'owner_phone_number': user.phone_number,
         })
 
     meta={
@@ -573,7 +579,10 @@ def browse_properties():
             'created_at': property.created_at,
             'updated_at': property.updated_at,
             'average_rating': average_rating,
-            'username': user.username
+            'username': user.username,
+            'owner_full_name': user.full_name,
+            'owner_email': user.email,
+            'owner_phone_number': user.phone_number,
         })
 
     meta={

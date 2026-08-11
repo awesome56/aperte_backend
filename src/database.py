@@ -23,7 +23,7 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(255), nullable=False)
-    phone_number = db.Column(db.Integer, nullable=True)
+    phone_number = db.Column(db.String(30), nullable=True)
     profile_picture = db.Column(db.String(255), default="default_profile.png")
     email_verified = db.Column(db.Integer, default=0)
     phone_number_verified = db.Column(db.Integer, nullable=True)

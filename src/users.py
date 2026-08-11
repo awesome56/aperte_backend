@@ -32,6 +32,7 @@ def edit_user():
         return jsonify({'message': "User not found"}), HTTP_404_NOT_FOUND
 
     full_name = request.get_json().get('full_name','')
+    phone_number = request.get_json().get('phone_number')
     # email = request.get_json().get('email','')
 
     if not full_name:
@@ -45,6 +46,8 @@ def edit_user():
     #         return jsonify({'error': "Email already exists"}), HTTP_409_CONFLICT
     
     user.full_name=full_name
+    if phone_number is not None:
+        user.phone_number=str(phone_number)
     # user.email=email
     user.updated_at=datetime.now()
 
