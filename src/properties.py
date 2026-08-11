@@ -53,6 +53,7 @@ def serialize_property(property):
         attachments.append({
             'id': property_image.id,
             'image_url': property_image.image_url,
+            'dp': property_image.dp,
             'created_at': property_image.created_at,
             'updated_at': property_image.updated_at,
         })
