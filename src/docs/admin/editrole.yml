@@ -1,0 +1,30 @@
+Edit a role name/description.
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+responses:
+  200:
+    description: Role updated
+  400:
+    description: Name required or role exists
+  403:
+    description: Insufficient permissions
+  404:
+    description: Role not found

@@ -1,0 +1,11 @@
+List all permissions in the catalog.
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+responses:
+  200:
+    description: List of permissions
+  403:
+    description: Insufficient permissions

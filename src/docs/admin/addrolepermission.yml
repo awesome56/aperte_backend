@@ -1,0 +1,24 @@
+Add a permission to a role.
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the role
+  - in: path
+    name: permission_name
+    required: true
+    type: string
+    description: Name of the permission
+responses:
+  200:
+    description: Permission added
+  403:
+    description: Insufficient permissions
+  404:
+    description: Role or permission not found

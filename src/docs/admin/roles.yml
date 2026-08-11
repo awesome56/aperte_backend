@@ -1,0 +1,11 @@
+List all roles with their permissions.
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+responses:
+  200:
+    description: List of roles
+  403:
+    description: Insufficient permissions

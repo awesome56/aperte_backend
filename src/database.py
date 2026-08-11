@@ -17,6 +17,39 @@ class Notification(db.Model):
     def __repr__(self) -> str:
         return f'Notification ID: {self.id} - Type: {self.type}'
     
+class Permission(db.Model):
+    __tablename__ = 'permission'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+
+    def __repr__(self):
+        return f'Permission: {self.name}'
+
+
+role_permissions = db.Table(
+    'role_permissions',
+    db.Column('role_id', db.Integer, db.ForeignKey('role.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('permission_id', db.Integer, db.ForeignKey('permission.id', ondelete='CASCADE'), primary_key=True),
+)
+
+
+class Role(db.Model):
+    __tablename__ = 'role'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+
+    permissions = db.relationship('Permission', secondary=role_permissions, backref='roles', lazy='dynamic')
+
+    def __repr__(self):
+        return f'Role: {self.name}'
+
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -24,6 +57,7 @@ class User(db.Model):
     password = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='user')
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id', ondelete='SET NULL'), nullable=True)
     phone_number = db.Column(db.String(30), nullable=True)
     profile_picture = db.Column(db.String(255), default="default_profile.png")
     email_verified = db.Column(db.Integer, default=0)
@@ -41,6 +75,7 @@ class User(db.Model):
     notifications_received = db.relationship('Notification', backref='user', foreign_keys=[Notification.user_id], cascade='all, delete-orphan')
     favorites = db.relationship('Favorite', backref='user', cascade='all, delete-orphan')
     bookings = db.relationship('Booking', backref='customer', cascade='all, delete-orphan')
+    role_obj = db.relationship('Role', backref='users', foreign_keys=[role_id])
 
     def __repr__(self):
         return f'User ID: {self.id} - Username: {self.username}'

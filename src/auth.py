@@ -330,9 +330,18 @@ def user():
                     'email_verified': user.email_verified,
                     'phone_number_verified': user.phone_number_verified,
                     'role': user.role,
+                    'role_id': user.role_id,
                     'created_at': user.created_at,
                     'updated_at': user.updated_at,
             }), HTTP_200_OK
+
+
+@auth.get("/permissions")
+@jwt_required()
+def my_permissions():
+    from src.constants.permissions import get_user_permissions
+    perms = sorted(get_user_permissions())
+    return jsonify({'permissions': perms}), HTTP_200_OK
 
 @auth.get("/token/refresh")
 @jwt_required(refresh=True)

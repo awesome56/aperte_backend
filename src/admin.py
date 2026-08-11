@@ -6,8 +6,8 @@ from src.constants.http_status_codes import HTTP_200_OK
 from src.constants.http_status_codes import HTTP_201_CREATED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
 from flask import Blueprint, request, jsonify
-from src.database import db, User, Property, Booking, Room, PropertyImage
-from src.constants.permissions import admin_required
+from src.database import db, User, Property, Booking, Room, PropertyImage, Role, Permission, role_permissions
+from src.constants.permissions import admin_required, permission_required, PERMISSION_CATALOG
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
 import json
@@ -28,9 +28,172 @@ def user_summary(u):
         'profile_picture': u.profile_picture,
         'email_verified': u.email_verified,
         'role': u.role,
+        'role_id': u.role_id,
         'created_at': u.created_at,
         'updated_at': u.updated_at,
     }
+
+
+def role_summary(r):
+    return {
+        'id': r.id,
+        'name': r.name,
+        'description': r.description,
+        'permissions': sorted([p.name for p in r.permissions.all()]),
+        'created_at': r.created_at,
+    }
+
+
+# ---------- Permissions ----------
+
+@admin.get("/permissions")
+@admin_required
+@swag_from('./docs/admin/permissions.yml')
+def get_permissions():
+    perms = Permission.query.order_by(Permission.name.asc()).all()
+    return jsonify({'data': [{'id': p.id, 'name': p.name, 'description': p.description} for p in perms]}), HTTP_200_OK
+
+
+@admin.post("/permissions/seed")
+@admin_required
+def seed_permissions():
+    """Insert any permissions from the catalog that are missing (idempotent)."""
+    added = 0
+    for p in PERMISSION_CATALOG:
+        if not Permission.query.filter_by(name=p['name']).first():
+            db.session.add(Permission(name=p['name'], description=p['description']))
+            added += 1
+    db.session.commit()
+    return jsonify({'added': added}), HTTP_200_OK
+
+
+# ---------- Roles ----------
+
+@admin.get("/roles")
+@admin_required
+@swag_from('./docs/admin/roles.yml')
+def get_roles():
+    roles = Role.query.order_by(Role.name.asc()).all()
+    return jsonify({'data': [role_summary(r) for r in roles]}), HTTP_200_OK
+
+
+@admin.post("/roles")
+@admin_required
+@swag_from('./docs/admin/createrole.yml')
+def create_role():
+    name = request.get_json().get('name', '').strip()
+    description = request.get_json().get('description', '').strip()
+
+    if not name:
+        return jsonify({'error': "Role name is required"}), HTTP_400_BAD_REQUEST
+
+    if Role.query.filter_by(name=name).first():
+        return jsonify({'error': "Role already exists"}), HTTP_400_BAD_REQUEST
+
+    role = Role(name=name, description=description, created_at=datetime.now())
+    db.session.add(role)
+    db.session.commit()
+
+    return jsonify(role_summary(role)), HTTP_201_CREATED
+
+
+@admin.put("/roles/<int:id>")
+@admin_required
+@swag_from('./docs/admin/editrole.yml')
+def edit_role(id):
+    role = Role.query.filter_by(id=id).first()
+    if not role:
+        return jsonify({'error': "Role not found"}), HTTP_404_NOT_FOUND
+
+    name = request.get_json().get('name', role.name).strip()
+    description = request.get_json().get('description', role.description)
+
+    if not name:
+        return jsonify({'error': "Role name is required"}), HTTP_400_BAD_REQUEST
+
+    existing = Role.query.filter(Role.name == name, Role.id != role.id).first()
+    if existing:
+        return jsonify({'error': "Role already exists"}), HTTP_400_BAD_REQUEST
+
+    role.name = name
+    role.description = description
+    db.session.commit()
+
+    return jsonify(role_summary(role)), HTTP_200_OK
+
+
+@admin.delete("/roles/<int:id>")
+@admin_required
+@swag_from('./docs/admin/deleterole.yml')
+def delete_role(id):
+    role = Role.query.filter_by(id=id).first()
+    if not role:
+        return jsonify({'error': "Role not found"}), HTTP_404_NOT_FOUND
+
+    if role.name in ('user', 'admin'):
+        return jsonify({'error': "The built-in '{}' role cannot be deleted".format(role.name)}), HTTP_400_BAD_REQUEST
+
+    # Users with this role fall back to their legacy role string
+    User.query.filter_by(role_id=role.id).update({'role_id': None})
+    db.session.delete(role)
+    db.session.commit()
+
+    return jsonify({}), HTTP_204_NO_CONTENT
+
+
+@admin.put("/roles/<int:id>/permissions")
+@admin_required
+@swag_from('./docs/admin/rolepermissions.yml')
+def set_role_permissions(id):
+    """Replace the full permission set of a role."""
+    role = Role.query.filter_by(id=id).first()
+    if not role:
+        return jsonify({'error': "Role not found"}), HTTP_404_NOT_FOUND
+
+    permission_names = request.get_json().get('permissions', [])
+    if not isinstance(permission_names, list):
+        return jsonify({'error': "Permissions must be a list of names"}), HTTP_400_BAD_REQUEST
+
+    permissions = Permission.query.filter(Permission.name.in_(permission_names)).all()
+    role.permissions = permissions
+    db.session.commit()
+
+    return jsonify(role_summary(role)), HTTP_200_OK
+
+
+@admin.post("/roles/<int:id>/permissions/<permission_name>")
+@admin_required
+@swag_from('./docs/admin/addrolepermission.yml')
+def add_role_permission(id, permission_name):
+    role = Role.query.filter_by(id=id).first()
+    if not role:
+        return jsonify({'error': "Role not found"}), HTTP_404_NOT_FOUND
+
+    permission = Permission.query.filter_by(name=permission_name).first()
+    if not permission:
+        return jsonify({'error': "Permission not found"}), HTTP_404_NOT_FOUND
+
+    if permission not in role.permissions.all():
+        role.permissions.append(permission)
+        db.session.commit()
+
+    return jsonify(role_summary(role)), HTTP_200_OK
+
+
+@admin.delete("/roles/<int:id>/permissions/<permission_name>")
+@admin_required
+@swag_from('./docs/admin/removerolepermission.yml')
+def remove_role_permission(id, permission_name):
+    role = Role.query.filter_by(id=id).first()
+    if not role:
+        return jsonify({'error': "Role not found"}), HTTP_404_NOT_FOUND
+
+    permission = Permission.query.filter_by(name=permission_name).first()
+    if permission and permission in role.permissions.all():
+        role.permissions.remove(permission)
+        db.session.commit()
+
+    return jsonify(role_summary(role)), HTTP_200_OK
 
 
 @admin.get("/stats")
@@ -105,11 +268,17 @@ def update_user_role(id):
     if user.id == current_admin:
         return jsonify({'error': "You cannot change your own role"}), HTTP_400_BAD_REQUEST
 
-    role = request.get_json().get('role', '')
-    if role not in ('user', 'admin'):
-        return jsonify({'error': "Role must be one of: user, admin"}), HTTP_400_BAD_REQUEST
+    role_name = request.get_json().get('role', '').strip()
+    role = Role.query.filter_by(name=role_name).first()
 
-    user.role = role
+    if not role:
+        return jsonify({'error': "Role not found. Available roles: {}".format(
+            ', '.join(r.name for r in Role.query.order_by(Role.name).all())
+        )}), HTTP_400_BAD_REQUEST
+
+    # Keep the legacy `role` string in sync for JWT compatibility
+    user.role = role.name
+    user.role_id = role.id
     user.updated_at = datetime.now()
     db.session.commit()
 

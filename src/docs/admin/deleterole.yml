@@ -1,0 +1,20 @@
+Delete a role (built-in user/admin cannot be deleted).
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+responses:
+  204:
+    description: Role deleted
+  400:
+    description: Cannot delete built-in role
+  403:
+    description: Insufficient permissions
+  404:
+    description: Role not found

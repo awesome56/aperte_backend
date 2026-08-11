@@ -1,0 +1,30 @@
+Replace the full permission set of a role.
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the role
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            type: string
+          example: ["properties.view", "properties.approve"]
+responses:
+  200:
+    description: Role permissions updated
+  403:
+    description: Insufficient permissions
+  404:
+    description: Role not found

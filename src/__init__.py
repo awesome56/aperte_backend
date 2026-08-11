@@ -98,6 +98,27 @@ def create_app(test_config=None):
 
     Swagger(app, config=swagger_config, template=template)
 
+    # Seed the permission catalog + built-in role permissions (idempotent)
+    with app.app_context():
+        try:
+            import src.database as dbmod
+            from src.database import Permission, Role
+            from src.constants.permissions import PERMISSION_CATALOG
+            for p in PERMISSION_CATALOG:
+                if not Permission.query.filter_by(name=p['name']).first():
+                    dbmod.db.session.add(Permission(name=p['name'], description=p['description']))
+            dbmod.db.session.commit()
+            # Give the built-in admin role all permissions
+            admin_role = Role.query.filter_by(name='admin').first()
+            if admin_role:
+                perms = Permission.query.all()
+                if admin_role.permissions.count() == 0 and perms:
+                    admin_role.permissions = perms
+                    dbmod.db.session.commit()
+        except Exception:
+            # Tables may not exist yet during migrations; skip silently
+            pass
+
     @app.errorhandler(HTTP_400_BAD_REQUEST)
     def handle_400(e):
         return jsonify({'error': "Bad request"}), HTTP_400_BAD_REQUEST
