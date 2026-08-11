@@ -7,7 +7,7 @@ from src.constants.http_status_codes import HTTP_201_CREATED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
 from flask import Blueprint, request, jsonify
 from src.database import db, User, Property, Booking, Room, PropertyImage, Role, Permission, role_permissions
-from src.constants.permissions import admin_required, permission_required, PERMISSION_CATALOG
+from src.constants.permissions import permission_required, PERMISSION_CATALOG
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
 import json
@@ -47,7 +47,7 @@ def role_summary(r):
 # ---------- Permissions ----------
 
 @admin.get("/permissions")
-@admin_required
+@permission_required('roles.view')
 @swag_from('./docs/admin/permissions.yml')
 def get_permissions():
     perms = Permission.query.order_by(Permission.name.asc()).all()
@@ -55,7 +55,7 @@ def get_permissions():
 
 
 @admin.post("/permissions/seed")
-@admin_required
+@permission_required('permissions.manage')
 def seed_permissions():
     """Insert any permissions from the catalog that are missing (idempotent)."""
     added = 0
@@ -70,7 +70,7 @@ def seed_permissions():
 # ---------- Roles ----------
 
 @admin.get("/roles")
-@admin_required
+@permission_required('roles.view')
 @swag_from('./docs/admin/roles.yml')
 def get_roles():
     roles = Role.query.order_by(Role.name.asc()).all()
@@ -78,7 +78,7 @@ def get_roles():
 
 
 @admin.post("/roles")
-@admin_required
+@permission_required('roles.manage')
 @swag_from('./docs/admin/createrole.yml')
 def create_role():
     name = request.get_json().get('name', '').strip()
@@ -98,7 +98,7 @@ def create_role():
 
 
 @admin.put("/roles/<int:id>")
-@admin_required
+@permission_required('roles.manage')
 @swag_from('./docs/admin/editrole.yml')
 def edit_role(id):
     role = Role.query.filter_by(id=id).first()
@@ -123,7 +123,7 @@ def edit_role(id):
 
 
 @admin.delete("/roles/<int:id>")
-@admin_required
+@permission_required('roles.manage')
 @swag_from('./docs/admin/deleterole.yml')
 def delete_role(id):
     role = Role.query.filter_by(id=id).first()
@@ -142,7 +142,7 @@ def delete_role(id):
 
 
 @admin.put("/roles/<int:id>/permissions")
-@admin_required
+@permission_required('permissions.manage')
 @swag_from('./docs/admin/rolepermissions.yml')
 def set_role_permissions(id):
     """Replace the full permission set of a role."""
@@ -162,7 +162,7 @@ def set_role_permissions(id):
 
 
 @admin.post("/roles/<int:id>/permissions/<permission_name>")
-@admin_required
+@permission_required('permissions.manage')
 @swag_from('./docs/admin/addrolepermission.yml')
 def add_role_permission(id, permission_name):
     role = Role.query.filter_by(id=id).first()
@@ -181,7 +181,7 @@ def add_role_permission(id, permission_name):
 
 
 @admin.delete("/roles/<int:id>/permissions/<permission_name>")
-@admin_required
+@permission_required('permissions.manage')
 @swag_from('./docs/admin/removerolepermission.yml')
 def remove_role_permission(id, permission_name):
     role = Role.query.filter_by(id=id).first()
@@ -197,7 +197,7 @@ def remove_role_permission(id, permission_name):
 
 
 @admin.get("/stats")
-@admin_required
+@permission_required('stats.view')
 @swag_from('./docs/admin/stats.yml')
 def get_stats():
     total_users = User.query.count()
@@ -222,7 +222,7 @@ def get_stats():
 
 
 @admin.get("/users")
-@admin_required
+@permission_required('users.view')
 @swag_from('./docs/admin/users.yml')
 def get_users():
     page = request.args.get('page', 1, type=int)
@@ -256,7 +256,7 @@ def get_users():
 
 
 @admin.put("/users/<int:id>/role")
-@admin_required
+@permission_required('users.assign_role')
 @swag_from('./docs/admin/userrole.yml')
 def update_user_role(id):
     current_admin = get_jwt_identity()
@@ -286,7 +286,7 @@ def update_user_role(id):
 
 
 @admin.delete("/users/<int:id>")
-@admin_required
+@permission_required('users.manage')
 @swag_from('./docs/admin/deleteuser.yml')
 def delete_user(id):
     current_admin = get_jwt_identity()
@@ -305,7 +305,7 @@ def delete_user(id):
 
 
 @admin.get("/properties")
-@admin_required
+@permission_required('properties.view')
 @swag_from('./docs/admin/properties.yml')
 def get_all_properties():
     page = request.args.get('page', 1, type=int)
@@ -369,7 +369,7 @@ def get_all_properties():
 
 
 @admin.put("/properties/<int:id>/approve")
-@admin_required
+@permission_required('properties.approve')
 @swag_from('./docs/admin/approveproperty.yml')
 def approve_property(id):
     property = Property.query.filter_by(id=id).first()
@@ -385,7 +385,7 @@ def approve_property(id):
 
 
 @admin.put("/properties/<int:id>/reject")
-@admin_required
+@permission_required('properties.approve')
 @swag_from('./docs/admin/rejectproperty.yml')
 def reject_property(id):
     property = Property.query.filter_by(id=id).first()
@@ -401,7 +401,7 @@ def reject_property(id):
 
 
 @admin.delete("/properties/<int:id>")
-@admin_required
+@permission_required('properties.delete')
 @swag_from('./docs/admin/deleteproperty.yml')
 def delete_property(id):
     property = Property.query.filter_by(id=id).first()

@@ -98,23 +98,38 @@ def create_app(test_config=None):
 
     Swagger(app, config=swagger_config, template=template)
 
-    # Seed the permission catalog + built-in role permissions (idempotent)
+    # Seed the permission catalog + built-in roles (idempotent)
     with app.app_context():
         try:
             import src.database as dbmod
             from src.database import Permission, Role
-            from src.constants.permissions import PERMISSION_CATALOG
+            from src.constants.permissions import PERMISSION_CATALOG, BUILTIN_ROLES
+            # permissions
             for p in PERMISSION_CATALOG:
                 if not Permission.query.filter_by(name=p['name']).first():
                     dbmod.db.session.add(Permission(name=p['name'], description=p['description']))
             dbmod.db.session.commit()
-            # Give the built-in admin role all permissions
-            admin_role = Role.query.filter_by(name='admin').first()
-            if admin_role:
-                perms = Permission.query.all()
-                if admin_role.permissions.count() == 0 and perms:
-                    admin_role.permissions = perms
-                    dbmod.db.session.commit()
+            all_perms = Permission.query.all()
+            perms_by_name = {p.name: p for p in all_perms}
+            # roles
+            for r in BUILTIN_ROLES:
+                role = Role.query.filter_by(name=r['name']).first()
+                if not role:
+                    role = Role(name=r['name'], description=r['description'])
+                    dbmod.db.session.add(role)
+                    dbmod.db.session.flush()
+                if r['permissions'] == '__all__':
+                    role.permissions = all_perms
+                else:
+                    role.permissions = [perms_by_name[n] for n in r['permissions'] if n in perms_by_name]
+            dbmod.db.session.commit()
+            # Backfill any user missing role_id using their legacy role string
+            missing = dbmod.User.query.filter(dbmod.User.role_id.is_(None)).all() if hasattr(dbmod, 'User') else []
+            for u in missing:
+                r = Role.query.filter_by(name=u.role).first()
+                if r:
+                    u.role_id = r.id
+            dbmod.db.session.commit()
         except Exception:
             # Tables may not exist yet during migrations; skip silently
             pass

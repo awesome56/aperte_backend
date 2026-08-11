@@ -65,6 +65,14 @@ def register():
     pwd_hash = generate_password_hash(password)
 
     user = User(full_name=full_name, username=username, email=email, password=pwd_hash, email_verified=0, created_at=datetime.now(), updated_at=datetime.now())
+
+    # Attach the default 'user' role so permissions resolve from day one.
+    from src.database import Role
+    default_role = Role.query.filter_by(name='user').first()
+    if default_role:
+        user.role = default_role.name
+        user.role_id = default_role.id
+
     db.session.add(user)
     db.session.commit()
 

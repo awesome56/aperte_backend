@@ -7,6 +7,8 @@ from src.constants.http_status_codes import HTTP_403_FORBIDDEN
 # The full catalog of permissions in the system.
 # Used to seed the `permission` table and to document available permissions.
 PERMISSION_CATALOG = [
+    # Dashboard
+    {'name': 'stats.view', 'description': 'View admin dashboard statistics'},
     # Properties
     {'name': 'properties.view', 'description': 'View all properties'},
     {'name': 'properties.create', 'description': 'Create property listings'},
@@ -24,6 +26,45 @@ PERMISSION_CATALOG = [
     # Bookings
     {'name': 'bookings.view', 'description': 'View all bookings'},
     {'name': 'bookings.manage', 'description': 'Manage bookings'},
+]
+
+# Permissions granted to each built-in role (used for seeding).
+BUILTIN_ROLES = [
+    {
+        'name': 'user',
+        'description': 'Default role with basic access',
+        'permissions': ['properties.view'],
+    },
+    {
+        'name': 'agent',
+        'description': 'Lists and manages properties',
+        'permissions': [
+            'properties.view',
+            'properties.create',
+            'properties.edit',
+            'properties.delete',
+            'bookings.view',
+        ],
+    },
+    {
+        'name': 'staff',
+        'description': 'Approves properties and manages agents and listings',
+        'permissions': [
+            'stats.view',
+            'properties.view',
+            'properties.approve',
+            'properties.edit',
+            'properties.delete',
+            'users.view',
+            'users.assign_role',
+            'bookings.view',
+        ],
+    },
+    {
+        'name': 'admin',
+        'description': 'Administrator with full access',
+        'permissions': '__all__',
+    },
 ]
 
 # Role hierarchy for the legacy `role` string field (admin > user)
