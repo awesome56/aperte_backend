@@ -1,0 +1,19 @@
+Reject a property (admin only).
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the property
+responses:
+  200:
+    description: Property rejected
+  403:
+    description: Insufficient permissions
+  404:
+    description: Property not found

@@ -1,0 +1,31 @@
+Update a user's role (admin only).
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the user
+  - in: body
+    name: body
+    required: true
+    schema:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [user, admin]
+          example: admin
+responses:
+  200:
+    description: User role updated
+  400:
+    description: Invalid role or cannot change own role
+  403:
+    description: Insufficient permissions
+  404:
+    description: User not found

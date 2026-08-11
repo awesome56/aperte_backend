@@ -1,0 +1,11 @@
+Get admin dashboard statistics.
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+responses:
+  200:
+    description: Dashboard statistics (users, properties, bookings)
+  403:
+    description: Insufficient permissions

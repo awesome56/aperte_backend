@@ -1,0 +1,27 @@
+List all users (admin only).
+---
+tags:
+  - Admin
+security:
+  - Bearer: []
+parameters:
+  - in: query
+    name: page
+    required: false
+    type: integer
+    default: 1
+  - in: query
+    name: per_page
+    required: false
+    type: integer
+    default: 20
+  - in: query
+    name: search
+    required: false
+    type: string
+    description: Search by username, email or full name
+responses:
+  200:
+    description: Paginated list of users
+  403:
+    description: Insufficient permissions

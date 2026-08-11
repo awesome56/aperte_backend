@@ -161,7 +161,7 @@ def login():
                 return jsonify({'msg': "Pls verify email"}), HTTP_200_OK
             
             refresh = create_refresh_token(identity=user.id)
-            access = create_access_token(identity=user.id)
+            access = create_access_token(identity=user.id, additional_claims={'role': user.role})
 
             # response = jsonify({
             #     'user': {
@@ -186,7 +186,8 @@ def login():
                     'full_name': user.full_name,
                     'username' : user.username,
                     'email': user.email,
-                    'email_verified': user.email_verified
+                    'email_verified': user.email_verified,
+                    'role': user.role
                 }
             }), HTTP_202_ACCEPTED
         
@@ -240,7 +241,7 @@ def verify_password(email):
         print('Failed to send email: {}'.format(e))
 
     refresh = create_refresh_token(identity=user.id)
-    access = create_access_token(identity=user.id)
+    access = create_access_token(identity=user.id, additional_claims={'role': user.role})
 
     # response = jsonify({
     #             'user': {
@@ -328,6 +329,7 @@ def user():
                     'profile_picture': user.profile_picture,
                     'email_verified': user.email_verified,
                     'phone_number_verified': user.phone_number_verified,
+                    'role': user.role,
                     'created_at': user.created_at,
                     'updated_at': user.updated_at,
             }), HTTP_200_OK
@@ -337,7 +339,8 @@ def user():
 @swag_from('./docs/auth/refreshtoken.yml')
 def refresh_users_token():
     identity = get_jwt_identity()
-    access = create_access_token(identity=identity)
+    user = User.query.filter_by(id=identity).first()
+    access = create_access_token(identity=identity, additional_claims={'role': user.role if user else 'user'})
     return jsonify({
                     'access': access
             }), HTTP_200_OK
