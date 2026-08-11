@@ -1,21 +1,11 @@
 from src.constants.http_status_codes import HTTP_400_BAD_REQUEST
-from src.constants.http_status_codes import HTTP_401_UNAUTHORIZED
 from src.constants.http_status_codes import HTTP_404_NOT_FOUND
-from src.constants.http_status_codes import HTTP_409_CONFLICT
 from src.constants.http_status_codes import HTTP_200_OK
-from src.constants.http_status_codes import HTTP_201_CREATED
-from src.constants.http_status_codes import HTTP_202_ACCEPTED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
-from flask import Blueprint, request
-from src.database import Favorite, PropertyImage, Review,User, Property, db
 from flask import Blueprint, request, jsonify
-import validators
+from src.database import Favorite, PropertyImage, Review, User, Property, db
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from werkzeug.utils import secure_filename
-import os
-import time
 from datetime import datetime
-from typing import Union
 from sqlalchemy import func
 
 favorites = Blueprint("favorite", __name__, url_prefix="/api/v1/favorites")
@@ -33,16 +23,33 @@ def favorite_property(id):
 
     if existing_favorite:
 
-        db.session.delete(existing_favorite )
+        db.session.delete(existing_favorite)
         db.session.commit()
 
-        return jsonify({'messsage': "Property unfavorited successfully"}), HTTP_200_OK
+        return jsonify({'message': "Property unfavorited successfully"}), HTTP_200_OK
     
     favorite = Favorite(user_id=current_user, property_id=id, created_at=datetime.now(), updated_at=datetime.now())
     db.session.add(favorite)
     db.session.commit()
 
-    return jsonify({'messsage': "Property favorited successfully"}), HTTP_200_OK
+    return jsonify({'message': "Property favorited successfully"}), HTTP_200_OK
+
+
+@favorites.get('/check/<int:id>')
+@jwt_required(optional=True)
+def check_favorite(id):
+
+    if not Property.query.filter_by(id=id).first():
+        return jsonify({'error': "Property not found"}), HTTP_404_NOT_FOUND
+
+    current_user = get_jwt_identity()
+
+    if current_user is None:
+        return jsonify({'favorited': False}), HTTP_200_OK
+
+    existing_favorite = Favorite.query.filter_by(user_id=current_user, property_id=id).first()
+
+    return jsonify({'favorited': existing_favorite is not None}), HTTP_200_OK
 
 
 @favorites.route('/', methods=['GET'])
@@ -53,21 +60,21 @@ def get_user_favorites():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
 
-    favorites = Favorite.query.filter_by(user_id=current_user).paginate(page=page, per_page=per_page)
+    favorites = Favorite.query.filter_by(user_id=current_user).order_by(Favorite.created_at.desc()).paginate(page=page, per_page=per_page)
 
-    if not favorites:
-        return jsonify({}), HTTP_204_NO_CONTENT
+    if not favorites.items:
+        return jsonify({'data': [], 'meta': {}}), HTTP_200_OK
 
     data = []
 
     for favorite in favorites.items:
-        property = Favorite.query.filter_by(id=favorite.property_id).first()
+        property = Property.query.filter_by(id=favorite.property_id).first()
+
+        if not property:
+            continue
 
         dp = PropertyImage.query.filter_by(property_id=property.id, dp=1).first()
-        if dp is None:  # Check if dp is None
-            dp_url = ""
-        else:
-            dp_url = dp.image_url
+        dp_url = dp.image_url if dp else ""
 
         average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
 
@@ -75,17 +82,30 @@ def get_user_favorites():
 
         data.append({
             'id': property.id,
+            'user_id': property.user_id,
             'title': property.title,
+            'category': property.category,
             'property_type': property.property_type,
+            'purpose': property.purpose,
             'price': property.price,
+            'currency': property.currency,
             'location': property.location,
-            'dp': dp_url,  # Use dp_url to access the image_url
+            'city': property.city,
+            'state': property.state,
+            'country': property.country,
+            'dp': dp_url,
             'approved': property.approved,
             'available': property.available,
+            'views': property.views,
             'created_at': property.created_at,
             'updated_at': property.updated_at,
-            'average_rating' : average_rating,
-            'username' : user.username
+            'average_rating': average_rating,
+            'username': user.username if user else None,
+            'owner_full_name': user.full_name if user else None,
+            'contact_phone': property.contact_phone,
+            'contact_email': property.contact_email,
+            'contact_website': property.contact_website,
+            'favorited': True,
         })
 
     meta={
@@ -98,44 +118,4 @@ def get_user_favorites():
         "has_prev": favorites.has_prev
     }
 
-    return jsonify({'data': data, 'meta':meta}), HTTP_200_OK
-
-
-@favorites.route('/properties/<int:id>', methods=['GET'])
-@jwt_required()
-def get_property_reviews(id):
-
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int)
-
-    property=Property.query.filter_by(id=id).first()
-
-    reviews = Review.query.filter_by(property_id=id).paginate(page=page, per_page=per_page)
-
-    data = []
-
-    for review in reviews.items:
-        user = User.query.filter_by(id = review.user_id).first()
-        data.append({
-            'id': review.id,
-            'property_id': review.property_id,
-            'user_id': review.user_id,
-            'username' : user.username,
-            'title': review.title,
-            'content': review.content,
-            'rating': review.rating,
-            'created_at': review.created_at,
-            'updated_at': review.updated_at
-        })
-
-    meta={
-        "page": reviews.page,
-        "pages": reviews.pages,
-        "total_count": reviews.total,
-        "prev_page": reviews.prev_num,
-        "next_page": reviews.next_num,
-        "has_next": reviews.has_next,
-        "has_prev": reviews.has_prev
-    }
-
-    return jsonify({'data': data, 'meta':meta}), HTTP_200_OK
+    return jsonify({'data': data, 'meta': meta}), HTTP_200_OK

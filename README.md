@@ -51,6 +51,21 @@ All endpoints are prefixed with `/api/v1`.
 | POST | `/auth/resetpassword/{email}` | Reset the password with the code |
 | POST | `/auth/changepassword` | Change the password of the authenticated user |
 
+#### Favorites
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| POST | `/favorites/{id}` | Toggle a property in/out of the user's favorites |
+| GET | `/favorites/` | List the authenticated user's favorite properties (paginated) |
+| GET | `/favorites/check/{id}` | Check if a property is favorited by the current user |
+
+#### Tracking / Analytics
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| POST | `/tracking/pageview` | Record a page view (visitor id + path, optional property id) |
+| GET | `/admin/analytics` | Admin dashboard analytics (page views, visitors, top properties/pages, favorites) |
+
+Property listings track `views` (incremented on detail view) and `favorites_count`; the admin dashboard shows the most viewed and most favorited properties.
+
 #### Users
 | Method | Endpoint | Description |
 | ------ | -------- | ----------- |

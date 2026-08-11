@@ -121,6 +121,7 @@ class Property(db.Model):
     amenities = db.Column(db.Text, nullable=True)  # Store amenities as a JSON or list
     approved = db.Column(db.Integer, default=0)
     available = db.Column(db.Integer, default=1)
+    views = db.Column(db.Integer, default=0)
     contact_phone = db.Column(db.String(30), nullable=True)
     contact_email = db.Column(db.String(255), nullable=True)
     contact_website = db.Column(db.String(255), nullable=True)
@@ -303,3 +304,19 @@ class Booking(db.Model):
 
     def __repr__(self):
         return f'Booking ID: {self.id} - Status: {self.status}'
+
+
+class PageVisit(db.Model):
+    __tablename__ = 'page_visit'
+
+    id = db.Column(db.Integer, primary_key=True)
+    visitor_id = db.Column(db.String(64), index=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=True)
+    path = db.Column(db.String(255), nullable=False)
+    referrer = db.Column(db.String(255), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+
+    def __repr__(self):
+        return f'PageVisit ID: {self.id} - Path: {self.path}'

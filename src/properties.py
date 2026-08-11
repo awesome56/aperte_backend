@@ -8,7 +8,7 @@ from src.constants.http_status_codes import HTTP_202_ACCEPTED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
 from src.constants.http_status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from flask import Blueprint, request
-from src.database import User, Property, Message, PropertyImage, PropertyVideo, Request, Review, db
+from src.database import User, Property, Message, PropertyImage, PropertyVideo, Request, Review, Favorite, db
 from flask import Blueprint, request, jsonify
 from src.constants.functions import adjust_url
 from src.constants.property_meta import is_valid_category, is_valid_purpose
@@ -99,6 +99,8 @@ def serialize_property(property):
         'negotiable': property.negotiable,
         'available': property.available,
         'approved': property.approved,
+        'views': property.views,
+        'favorites_count': Favorite.query.filter_by(property_id=property.id).count(),
         'created_at': property.created_at,
         'updated_at': property.updated_at,
         'average_rating': average_rating,
@@ -445,6 +447,9 @@ def get_property(id):
     if not property:
         return jsonify({'message': "Property not found"}),HTTP_404_NOT_FOUND
 
+    property.views = (property.views or 0) + 1
+    db.session.commit()
+
     return jsonify(serialize_property(property)), HTTP_200_OK
 
 
@@ -498,6 +503,8 @@ def get_properties(id):
             'dp': dp_url,  # Use dp_url to access the image_url
             'approved': property.approved,
             'available': property.available,
+            'views': property.views,
+            'favorites_count': Favorite.query.filter_by(property_id=property.id).count(),
             'created_at': property.created_at,
             'updated_at': property.updated_at,
             'average_rating' : average_rating,
@@ -585,6 +592,8 @@ def browse_properties():
             'dp': dp_url,
             'approved': property.approved,
             'available': property.available,
+            'views': property.views,
+            'favorites_count': Favorite.query.filter_by(property_id=property.id).count(),
             'created_at': property.created_at,
             'updated_at': property.updated_at,
             'average_rating': average_rating,

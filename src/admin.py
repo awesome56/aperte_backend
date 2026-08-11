@@ -6,7 +6,7 @@ from src.constants.http_status_codes import HTTP_200_OK
 from src.constants.http_status_codes import HTTP_201_CREATED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
 from flask import Blueprint, request, jsonify
-from src.database import db, User, Property, Booking, Room, PropertyImage, Role, Permission, role_permissions
+from src.database import db, User, Property, Booking, Room, PropertyImage, Role, Permission, role_permissions, Favorite, PageVisit
 from src.constants.permissions import permission_required, PERMISSION_CATALOG
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
@@ -218,6 +218,100 @@ def get_stats():
         'total_rooms': total_rooms,
         'hotels': hotels,
         'shortlets': shortlets,
+    }), HTTP_200_OK
+
+
+@admin.get("/analytics")
+@permission_required('stats.view')
+def get_analytics():
+    from datetime import datetime as dt, timedelta
+    today = dt.now().date()
+
+    def start_of_day(days_ago=0):
+        return dt(today.year, today.month, today.day) - timedelta(days=days_ago)
+
+    total_page_views = PageVisit.query.count()
+    unique_visitors = db.session.query(func.count(func.distinct(PageVisit.visitor_id))).scalar()
+    views_today = PageVisit.query.filter(PageVisit.created_at >= start_of_day(0)).count()
+    views_7d = PageVisit.query.filter(PageVisit.created_at >= start_of_day(6)).count()
+
+    new_visitors_today = db.session.query(func.count(func.distinct(PageVisit.visitor_id))).filter(
+        PageVisit.created_at >= start_of_day(0)).scalar()
+    new_visitors_7d = db.session.query(func.count(func.distinct(PageVisit.visitor_id))).filter(
+        PageVisit.created_at >= start_of_day(6)).scalar()
+
+    # most viewed properties
+    top_properties = Property.query.order_by(Property.views.desc()).limit(10).all()
+    top_props = []
+    for p in top_properties:
+        dp = PropertyImage.query.filter_by(property_id=p.id, dp=1).first()
+        top_props.append({
+            'id': p.id,
+            'title': p.title,
+            'views': p.views,
+            'dp': dp.image_url if dp else "",
+            'price': p.price,
+            'currency': p.currency,
+            'location': p.location,
+            'city': p.city,
+            'state': p.state,
+        })
+
+    # most favorited properties
+    fav_rows = db.session.query(
+        Favorite.property_id,
+        func.count(Favorite.id).label('cnt')
+    ).group_by(Favorite.property_id).order_by(func.count(Favorite.id).desc()).limit(10).all()
+    fav_props = []
+    for row in fav_rows:
+        p = Property.query.filter_by(id=row.property_id).first()
+        if not p:
+            continue
+        dp = PropertyImage.query.filter_by(property_id=p.id, dp=1).first()
+        fav_props.append({
+            'id': p.id,
+            'title': p.title,
+            'favorites_count': row.cnt,
+            'dp': dp.image_url if dp else "",
+            'price': p.price,
+            'currency': p.currency,
+        })
+
+    # top pages
+    page_rows = db.session.query(
+        PageVisit.path,
+        func.count(PageVisit.id).label('cnt')
+    ).group_by(PageVisit.path).order_by(func.count(PageVisit.id).desc()).limit(10).all()
+    top_pages = [{'path': r.path, 'count': r.cnt} for r in page_rows]
+
+    # views by day (last 14 days)
+    since = start_of_day(13)
+    day_rows = db.session.query(
+        func.date(PageVisit.created_at).label('day'),
+        func.count(PageVisit.id).label('cnt')
+    ).filter(PageVisit.created_at >= since).group_by('day').all()
+    counts_by_day = {str(r.day): r.cnt for r in day_rows}
+    views_by_day = []
+    for offset in range(13, -1, -1):
+        day = today - timedelta(days=offset)
+        views_by_day.append({'date': str(day), 'count': counts_by_day.get(str(day), 0)})
+
+    total_favorites = Favorite.query.count()
+    total_property_views = db.session.query(func.coalesce(func.sum(Property.views), 0)).scalar()
+
+    return jsonify({
+        'total_page_views': total_page_views,
+        'unique_visitors': unique_visitors,
+        'views_today': views_today,
+        'views_7d': views_7d,
+        'new_visitors_today': new_visitors_today,
+        'new_visitors_7d': new_visitors_7d,
+        'total_favorites': total_favorites,
+        'total_property_views': total_property_views,
+        'top_properties': top_props,
+        'favorite_properties': fav_props,
+        'top_pages': top_pages,
+        'views_by_day': views_by_day,
     }), HTTP_200_OK
 
 

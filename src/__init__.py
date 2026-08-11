@@ -13,6 +13,8 @@ from src.rooms import rooms
 from src.slots import slots
 from src.bookings import bookings
 from src.admin import admin
+from src.favorites import favorites
+from src.tracking import tracking
 from src.database import db
 from flask_jwt_extended import JWTManager
 from src.constants.http_status_codes import HTTP_400_BAD_REQUEST
@@ -95,6 +97,8 @@ def create_app(test_config=None):
     app.register_blueprint(slots)
     app.register_blueprint(bookings)
     app.register_blueprint(admin)
+    app.register_blueprint(favorites)
+    app.register_blueprint(tracking)
 
     Swagger(app, config=swagger_config, template=template)
 
