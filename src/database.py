@@ -70,6 +70,7 @@ class Property(db.Model):
     purpose = db.Column(db.String(20), nullable=False, default='rent')
     attributes = db.Column(db.Text, nullable=True)
     price = db.Column(db.Float, nullable=False)
+    currency = db.Column(db.String(10), nullable=False, default='USD')
     area = db.Column(db.Float, nullable=True)  # Total area in square meters
     bedrooms = db.Column(db.Integer, nullable=True)
     bathrooms = db.Column(db.Integer, nullable=True)

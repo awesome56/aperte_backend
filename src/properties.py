@@ -81,6 +81,7 @@ def serialize_property(property):
         'purpose': property.purpose,
         'attributes': json.loads(property.attributes) if property.attributes else {},
         'price': property.price,
+        'currency': property.currency,
         'area': property.area,
         'bedrooms': property.bedrooms,
         'bathrooms': property.bathrooms,
@@ -117,6 +118,7 @@ def create_property():
     purpose = request.get_json().get('purpose', 'rent')
     attributes = request.get_json().get('attributes')
     price = request.get_json().get('price')
+    currency = request.get_json().get('currency', 'USD')
     area = request.get_json().get('area')
     bedrooms = request.get_json().get('bedrooms')
     bathrooms = request.get_json().get('bathrooms')
@@ -187,7 +189,7 @@ def create_property():
 
     attributes_str = json.dumps(attributes) if attributes else None
     
-    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, created_at=datetime.now(), updated_at=datetime.now())
+    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, currency=currency, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, created_at=datetime.now(), updated_at=datetime.now())
 
     db.session.add(property)
     db.session.commit()
@@ -572,6 +574,7 @@ def edit_property(id):
     purpose = request.get_json().get('purpose', property.purpose)
     attributes = request.get_json().get('attributes')
     price = request.get_json().get('price')
+    currency = request.get_json().get('currency', property.currency)
     area = request.get_json().get('area')
     bedrooms = request.get_json().get('bedrooms')
     bathrooms = request.get_json().get('bathrooms')
@@ -657,6 +660,7 @@ def edit_property(id):
     if attributes_str is not None:
         property.attributes=attributes_str
     property.price=price
+    property.currency=currency
     property.area=area
     property.bedrooms=bedrooms
     property.bathrooms=bathrooms

@@ -48,6 +48,10 @@ parameters:
         price:
           type: number
           example: 2500000
+        currency:
+          type: string
+          description: ISO currency code e.g. NGN, USD, GBP, EUR
+          example: "NGN"
         area:
           type: number
           example: 120
