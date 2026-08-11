@@ -207,8 +207,24 @@ class Room(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now())
     updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
 
+    images = db.relationship('RoomImage', backref='room', lazy='dynamic', cascade='all, delete-orphan')
+
     def __repr__(self):
         return f'Room ID: {self.id} - Type: {self.room_type}'
+
+
+class RoomImage(db.Model):
+    __tablename__ = 'room_image'
+
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('room.id', ondelete='CASCADE'), nullable=False)
+    image_url = db.Column(db.String(255), nullable=False)
+    dp = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
+
+    def __repr__(self):
+        return f'Room Image ID: {self.id} - Room ID: {self.room_id}'
 
 
 class Slot(db.Model):

@@ -216,15 +216,23 @@ def add_property_image(id):
     if not files:
         return jsonify({'error': "No file added"}),HTTP_400_BAD_REQUEST
 
+    if len(files) > 5:
+        return jsonify({'error': "Maximum of 5 images per property"}), HTTP_400_BAD_REQUEST
+
+    current_count = PropertyImage.query.filter_by(property_id=property.id).count()
+
+    if current_count + len(files) > 5:
+        return jsonify({'error': "Property can only have a maximum of 5 images"}), HTTP_400_BAD_REQUEST
+
     for file in files:
         if file:
             # Check the file extension
             if not allowed_file(file.filename):
-                return 'Invalid file extension'
+                return jsonify({'error': "Invalid file extension"}), HTTP_400_BAD_REQUEST
 
             # Check the file size
             if not allowed_file_size(file):
-                return 'File size is too large'
+                return jsonify({'error': "File size is too large"}), HTTP_400_BAD_REQUEST
             
             # Reset the pointer to the beginning of the file
             file.seek(0)
@@ -296,6 +304,33 @@ def delete_image(id):
         return jsonify({'error': str(e)}), HTTP_500_INTERNAL_SERVER_ERROR
 
     return jsonify({}), HTTP_204_NO_CONTENT
+
+
+@properties.put('/images/<int:id>/dp')
+@properties.patch('/images/<int:id>/dp')
+@jwt_required()
+@swag_from('./docs/properties/setpropertyimage_dp.yml')
+def set_property_image_dp(id):
+    current_user = get_jwt_identity()
+
+    property_image = PropertyImage.query.filter_by(id=id).first()
+    if not property_image:
+        return jsonify({'error': "Image not found"}), HTTP_404_NOT_FOUND
+
+    property = Property.query.filter_by(id=property_image.property_id).first()
+    if not property.user_id == current_user:
+        return jsonify({'error': "Unauthorized"}), HTTP_401_UNAUTHORIZED
+
+    # Clear existing dp flags for this property, then set this image as the display picture.
+    PropertyImage.query.filter_by(property_id=property.id, dp=1).update({'dp': 0})
+    property_image.dp = 1
+    db.session.commit()
+
+    return jsonify({
+        'id': property_image.id,
+        'image_url': property_image.image_url,
+        'dp': property_image.dp,
+    }), HTTP_200_OK
 
 
 @properties.post('/videos/<int:id>')

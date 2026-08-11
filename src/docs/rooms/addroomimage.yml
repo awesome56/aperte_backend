@@ -1,0 +1,28 @@
+Add images to a room (maximum 3 per room).
+---
+tags:
+  - Rooms
+security:
+  - Bearer: []
+consumes:
+  - multipart/form-data
+parameters:
+  - in: path
+    name: id
+    required: true
+    type: integer
+    description: Id of the room
+  - in: formData
+    name: file
+    required: true
+    type: file
+    description: Image file(s) to upload (png, jpg, jpeg, heif). Repeat up to 3 total per room.
+responses:
+  201:
+    description: Images uploaded
+  400:
+    description: No file added, invalid file, or over the 3-image limit
+  401:
+    description: Unauthorized
+  404:
+    description: Room not found
