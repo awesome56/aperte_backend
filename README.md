@@ -49,6 +49,7 @@ All endpoints are prefixed with `/api/v1`.
 | GET | `/auth/token/refresh` | Refresh the access token |
 | GET | `/auth/forgotpassword/{email}` | Request a password reset code |
 | POST | `/auth/resetpassword/{email}` | Reset the password with the code |
+| POST | `/auth/changepassword` | Change the password of the authenticated user |
 
 #### Users
 | Method | Endpoint | Description |

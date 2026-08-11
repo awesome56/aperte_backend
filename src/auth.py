@@ -400,6 +400,54 @@ def forgot_password(email):
     return jsonify({'msg': "Token sent to email"}), HTTP_201_CREATED
 
 
+@auth.post("/changepassword")
+@jwt_required()
+@swag_from('./docs/auth/changepassword.yml')
+def change_password():
+
+    user_id = get_jwt_identity()
+
+    user = User.query.filter_by(id=user_id).first()
+
+    if not user:
+        return jsonify({'error': "User not found"}), HTTP_404_NOT_FOUND
+
+    old_password = request.json['old_password']
+    new_password = request.json['new_password']
+    comfirm_password = request.json['comfirm_password']
+
+    if not old_password or not new_password or not comfirm_password:
+        return jsonify({'error': "Old password, New password and Comfirm password must not be empty"}), HTTP_400_BAD_REQUEST
+
+    if not comfirm_password == new_password:
+        return jsonify({'error': "Password missmatch"}), HTTP_400_BAD_REQUEST
+
+    if not check_password_hash(user.password, old_password):
+        return jsonify({'error': "Old password is incorrect"}), HTTP_400_BAD_REQUEST
+
+    if check_password_hash(user.password, new_password):
+        return jsonify({'error': "New password must be diffrent from Old password"}), HTTP_400_BAD_REQUEST
+
+    if not check_password(new_password):
+        return jsonify({'error': "Password must contain an upper, a symbol, a number and must be more than 5 characters"}), HTTP_400_BAD_REQUEST
+
+    user.password = generate_password_hash(new_password)
+    user.updated_at = datetime.now()
+
+    db.session.commit()
+
+    #Send email
+    msg = Message(subject='Password Change Successful', recipients=[user.email])
+    msg.body = "Your password has been successfully changed"
+
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print('Failed to send email: {}'.format(e))
+
+    return jsonify({'msg': "Password change successful"}), HTTP_200_OK
+
+
 @auth.post("/resetpassword/<email>")
 @swag_from('./docs/auth/resetpassword.yml')
 def reset_password(email):
