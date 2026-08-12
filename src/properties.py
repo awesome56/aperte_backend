@@ -448,7 +448,28 @@ def get_property(id):
         return jsonify({'message': "Property not found"}),HTTP_404_NOT_FOUND
 
     property.views = (property.views or 0) + 1
-    db.session.commit()
+
+    # Record a server-side analytics pageview for this property so property
+    # analytics work even if client-side tracking is blocked/disabled.
+    try:
+        from src.tracking import ingest_batch
+        visitor_id = request.headers.get('X-Visitor-Id') or 'anonymous'
+        session_id = request.headers.get('X-Session-Id') or visitor_id
+        item = {
+            'type': 'pageview',
+            'session_id': session_id,
+            'visitor_id': visitor_id,
+            'path': '/properties/{}'.format(property.id),
+            'title': property.title,
+            'referrer': request.headers.get('Referer') or '',
+            'property_id': property.id,
+            'screen_size': request.headers.get('X-Screen-Size'),
+        }
+        ingest_batch([item], request.headers.get('User-Agent', ''), request.headers.get('CF-IPCountry'), None)
+    except Exception:
+        db.session.rollback()
+        property.views = (property.views or 0) + 1
+        db.session.commit()
 
     return jsonify(serialize_property(property)), HTTP_200_OK
 

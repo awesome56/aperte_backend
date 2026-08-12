@@ -286,72 +286,86 @@ def content_rows(start_dt, end_dt, limit=20):
 
 
 def property_rows(start_dt, end_dt, limit=20, property_id=None):
-    q = db.session.query(
+    """Properties ranked by total views (server counter), enriched with
+    event-derived stats (visitors, sessions, avg time on page)."""
+
+    if property_id:
+        props_q = Property.query.filter(Property.id == property_id)
+    else:
+        props_q = Property.query.order_by(Property.views.desc()).limit(limit)
+    props = {p.id: p for p in props_q.all()}
+
+    if not props:
+        return []
+
+    ids = list(props.keys())
+
+    stat_rows = db.session.query(
         AnalyticsEvent.property_id,
-        db.func.count(AnalyticsEvent.id).label('views'),
-        func_count_distinct(AnalyticsEvent.visitor_id).label('visitors'),
-        func_count_distinct(AnalyticsEvent.session_id).label('sessions'),
-        db.func.avg(AnalyticsEvent.time_on_page_ms).label('avg_time'),
+        db.func.count(AnalyticsEvent.id).label('ev_views'),
+        func_count_distinct(AnalyticsEvent.visitor_id).label('ev_visitors'),
+        func_count_distinct(AnalyticsEvent.session_id).label('ev_sessions'),
+        db.func.avg(AnalyticsEvent.time_on_page_ms).label('ev_avg_time'),
     ).filter(
         AnalyticsEvent.event_type == PAGEVIEW,
-        AnalyticsEvent.property_id.isnot(None),
+        AnalyticsEvent.property_id.in_(ids),
         AnalyticsEvent.created_at >= start_dt,
         AnalyticsEvent.created_at <= end_dt,
-    )
-    if property_id:
-        q = q.filter(AnalyticsEvent.property_id == property_id)
-    q = q.group_by(AnalyticsEvent.property_id).order_by(db.func.count(AnalyticsEvent.id).desc())
-    if not property_id:
-        q = q.limit(limit)
-    rows = q.all()
+    ).group_by(AnalyticsEvent.property_id).all()
 
-    props = {p.id: p for p in Property.query.filter(Property.id.in_([r.property_id for r in rows])).all()} if rows else {}
+    event_stats = {r.property_id: r for r in stat_rows}
+
     dps = {}
-    if rows:
-        for p in PropertyImage.query.filter(PropertyImage.dp == 1, PropertyImage.property_id.in_(list(props.keys()))).all():
+    if ids:
+        for p in PropertyImage.query.filter(PropertyImage.dp == 1, PropertyImage.property_id.in_(ids)).all():
             if p.property_id not in dps:
                 dps[p.property_id] = p.image_url
 
-    sessions = set(r.property_id for r in rows) if rows else set()
+    # bounce per property from sessions whose landing is the property page
     bounce_map = {}
-    if sessions:
-        # bounce per property from sessions whose landing is the property page
-        landing_rows = db.session.query(
-            VisitorSession.landing_path, VisitorSession.is_bounce
-        ).filter(
-            VisitorSession.started_at >= start_dt,
-            VisitorSession.started_at <= end_dt,
-        ).all()
-        for lp, bounced in landing_rows:
-            if lp and lp.startswith('/properties/'):
-                try:
-                    pid = int(lp.split('/')[2])
-                except (ValueError, IndexError):
-                    continue
-                bounce_map.setdefault(pid, [0, 0])
-                bounce_map[pid][0] += 1
-                if bounced:
-                    bounce_map[pid][1] += 1
+    landing_rows = db.session.query(
+        VisitorSession.landing_path, VisitorSession.is_bounce
+    ).filter(
+        VisitorSession.started_at >= start_dt,
+        VisitorSession.started_at <= end_dt,
+    ).all()
+    for lp, bounced in landing_rows:
+        if lp and lp.startswith('/properties/'):
+            try:
+                pid = int(lp.split('/')[2])
+            except (ValueError, IndexError):
+                continue
+            if pid not in ids:
+                continue
+            bounce_map.setdefault(pid, [0, 0])
+            bounce_map[pid][0] += 1
+            if bounced:
+                bounce_map[pid][1] += 1
 
     out = []
-    for r in rows:
-        p = props.get(r.property_id)
-        b = bounce_map.get(r.property_id, [0, 0])
+    for pid, p in props.items():
+        stats = event_stats.get(pid)
+        b = bounce_map.get(pid, [0, 0])
         out.append({
-            'id': r.property_id,
-            'title': p.title if p else 'Property #{}'.format(r.property_id),
-            'views': r.views,
-            'visitors': r.visitors,
-            'sessions': r.sessions,
-            'avg_time_on_page': round(r.avg_time or 0),
+            'id': pid,
+            'title': p.title,
+            'views': p.views or 0,
+            'visitors': stats.ev_visitors if stats else 0,
+            'sessions': stats.ev_sessions if stats else 0,
+            'avg_time_on_page': round(stats.ev_avg_time or 0) if stats else 0,
             'bounce_rate': round((b[1] / b[0] * 100), 1) if b[0] else 0.0,
-            'dp': dps.get(r.property_id, ''),
+            'dp': dps.get(pid, ''),
         })
+    out.sort(key=lambda x: x['views'], reverse=True)
     return out
 
 
 def property_detail(start_dt, end_dt, property_id):
     """Full per-property analytics including sources + devices."""
+    p = Property.query.filter_by(id=property_id).first()
+    if not p:
+        return None
+
     q = AnalyticsEvent.query.filter(
         AnalyticsEvent.event_type == PAGEVIEW,
         AnalyticsEvent.property_id == property_id,
@@ -394,15 +408,13 @@ def property_detail(start_dt, end_dt, property_id):
         AnalyticsEvent.created_at <= end_dt,
     ).group_by('day').order_by('day').all()
 
-    p = Property.query.filter_by(id=property_id).first()
-
     def fmt_day(d):
         return d.strftime('%Y-%m-%d') if hasattr(d, 'strftime') else str(d)
 
     return {
         'id': property_id,
-        'title': p.title if p else 'Property #{}'.format(property_id),
-        'views': views,
+        'title': p.title,
+        'views': p.views or 0,
         'visitors': visitors,
         'sessions': sessions,
         'avg_time_on_page': avg_time,
