@@ -320,3 +320,86 @@ class PageVisit(db.Model):
 
     def __repr__(self):
         return f'PageVisit ID: {self.id} - Path: {self.path}'
+
+
+class VisitorSession(db.Model):
+    """One row per browser session (client-generated session id, per tab)."""
+
+    __tablename__ = 'visitor_session'
+
+    id = db.Column(db.String(64), primary_key=True)
+    visitor_id = db.Column(db.String(64), index=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    started_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    last_activity_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    ended_at = db.Column(db.DateTime, nullable=True)
+    duration_seconds = db.Column(db.Integer, nullable=True)
+    page_views = db.Column(db.Integer, default=0)
+    landing_path = db.Column(db.String(255), nullable=False)
+    landing_title = db.Column(db.String(255), nullable=True)
+    exit_path = db.Column(db.String(255), nullable=True)
+    referrer = db.Column(db.String(255), nullable=True)
+    source_type = db.Column(db.String(20), default='direct')
+    utm_source = db.Column(db.String(100), nullable=True)
+    utm_medium = db.Column(db.String(100), nullable=True)
+    utm_campaign = db.Column(db.String(100), nullable=True)
+    utm_term = db.Column(db.String(100), nullable=True)
+    utm_content = db.Column(db.String(100), nullable=True)
+    device_type = db.Column(db.String(20), default='desktop')
+    browser = db.Column(db.String(50), nullable=True)
+    os = db.Column(db.String(50), nullable=True)
+    screen_size = db.Column(db.String(30), nullable=True)
+    country = db.Column(db.String(4), nullable=True)
+    is_bounce = db.Column(db.Boolean, nullable=True)
+
+    def __repr__(self):
+        return f'VisitorSession ID: {self.id} - Visitor: {self.visitor_id}'
+
+
+class AnalyticsEvent(db.Model):
+    """Generic analytics event: page views, custom events, performance metrics and errors.
+
+    Keeping a single high-volume table (instead of many small ones) makes
+    ingestion cheap and reporting flexible. Performance is handled with
+    indexes and filtered aggregations.
+    """
+
+    __tablename__ = 'analytics_event'
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(64), index=True, nullable=False)
+    visitor_id = db.Column(db.String(64), index=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    event_type = db.Column(db.String(20), index=True, nullable=False)  # pageview | event | performance | error
+    name = db.Column(db.String(100), nullable=True)  # custom event name
+    category = db.Column(db.String(50), nullable=True)  # event category
+    properties = db.Column(db.Text, nullable=True)  # JSON metadata for custom events
+    path = db.Column(db.String(255), index=True, nullable=False)
+    title = db.Column(db.String(255), nullable=True)
+    referrer = db.Column(db.String(255), nullable=True)
+    property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='SET NULL'), index=True, nullable=True)
+    time_on_page_ms = db.Column(db.Integer, nullable=True)
+    device_type = db.Column(db.String(20), nullable=True)
+    browser = db.Column(db.String(50), nullable=True)
+    os = db.Column(db.String(50), nullable=True)
+    screen_size = db.Column(db.String(30), nullable=True)
+    country = db.Column(db.String(4), nullable=True)
+    source_type = db.Column(db.String(20), nullable=True)
+    utm_source = db.Column(db.String(100), nullable=True)
+    utm_medium = db.Column(db.String(100), nullable=True)
+    utm_campaign = db.Column(db.String(100), nullable=True)
+    utm_term = db.Column(db.String(100), nullable=True)
+    utm_content = db.Column(db.String(100), nullable=True)
+    # performance metrics (milliseconds, cls is a score)
+    ttfb = db.Column(db.Integer, nullable=True)
+    dom_loaded = db.Column(db.Integer, nullable=True)
+    load_time = db.Column(db.Integer, nullable=True)
+    fcp = db.Column(db.Integer, nullable=True)
+    lcp = db.Column(db.Integer, nullable=True)
+    cls = db.Column(db.Float, nullable=True)
+    js_errors = db.Column(db.Integer, default=0)
+    failed_requests = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+
+    def __repr__(self):
+        return f'AnalyticsEvent ID: {self.id} - {self.event_type} - {self.path}'
