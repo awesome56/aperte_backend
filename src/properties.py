@@ -535,16 +535,33 @@ def claim_property(id):
         db.session.add(claim)
         db.session.flush()
 
-    # ---- verification path ----
-    # Properties with a contact email verify with an emailed code
-    # (Google-style). Properties without one use document submission,
-    # reviewed by the admin.
-    if property.contact_email:
+    # ---- verification method (claimant's choice) ----
+    # 'email'    -> verify ownership with a code sent to the claimant's email
+    # 'document' -> upload supporting documents, reviewed by the admin
+    # 'phone'    -> reserved for future phone/SMS verification
+    if request.files and 'document' in request.files:
+        method = 'document'
+    else:
+        data = request.get_json(silent=True) or {}
+        method = (data.get('method') or 'email').lower()
+
+    if method not in ('email', 'document'):
+        db.session.delete(claim)
+        db.session.commit()
+        return jsonify({'error': "Verification method must be 'email' or 'document'"}), HTTP_400_BAD_REQUEST
+
+    if method == 'email':
         claim.status = 'pending_verification'
         claim.updated_at = datetime.now()
         db.session.commit()
 
-        target_email = property.contact_email
+        claimant = User.query.filter_by(id=current_user).first()
+        target_email = claimant.email if claimant else None
+        if not target_email:
+            db.session.delete(claim)
+            db.session.commit()
+            return jsonify({'error': "No email on your account to verify with"}), HTTP_400_BAD_REQUEST
+
         _send_claim_code(claim, property, target_email)
 
         return jsonify({
@@ -554,11 +571,11 @@ def claim_property(id):
         }), HTTP_201_CREATED
 
     # ---- document submission path ----
-    file = request.files.get('document') if request.files else None
+    file = request.files.get('document')
     if not file or not file.filename:
         db.session.delete(claim)
         db.session.commit()
-        return jsonify({'error': "This property has no contact email. Upload an ownership document to claim it."}), HTTP_400_BAD_REQUEST
+        return jsonify({'error': "Upload a supporting document to submit your claim"}), HTTP_400_BAD_REQUEST
 
     filename = (file.filename or '').lower()
     if not filename.endswith(('.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.webp')):
@@ -703,7 +720,11 @@ def resend_claim_code(id):
     if not claim:
         return jsonify({'error': "No claim is waiting for verification"}), HTTP_400_BAD_REQUEST
 
-    target_email = property.contact_email or User.query.filter_by(id=current_user).first().email
+    claimant = User.query.filter_by(id=current_user).first()
+    target_email = claimant.email if claimant else None
+    if not target_email:
+        return jsonify({'error': "No email on your account to verify with"}), HTTP_400_BAD_REQUEST
+
     _send_claim_code(claim, property, target_email)
 
     return jsonify({'message': "A new verification code was sent to {}".format(target_email)}), HTTP_200_OK
