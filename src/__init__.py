@@ -1,6 +1,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 import os
+from datetime import timedelta
 from src.auth import auth, mail
 from src.users import users
 from src.properties import properties
@@ -38,6 +39,8 @@ def create_app(test_config=None):
             SQLALCHEMY_DATABASE_URI=os.environ.get("DATABASE_URL"),
             SQLALCHEMY_TRACK_MODIFICATIONS=False,
             JWT_SECRET_KEY=os.environ.get('JWT_SECRET_KEY'),
+            JWT_ACCESS_TOKEN_EXPIRES=timedelta(hours=1),
+            JWT_REFRESH_TOKEN_EXPIRES=timedelta(days=30),
 
             DEBUG=False,
             TESTING=False,
