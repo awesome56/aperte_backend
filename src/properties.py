@@ -100,6 +100,7 @@ def serialize_property(property):
         'negotiable': property.negotiable,
         'available': property.available,
         'approved': property.approved,
+        'disabled': property.disabled,
         'views': property.views,
         'favorites_count': Favorite.query.filter_by(property_id=property.id).count(),
         'created_at': property.created_at,
@@ -510,6 +511,12 @@ def get_property(id):
     if not property:
         return jsonify({'message': "Property not found"}),HTTP_404_NOT_FOUND
 
+    # disabled listings are hidden from the site (owner/admin can still view)
+    if property.disabled:
+        viewer = get_jwt_identity()
+        if viewer is None or (viewer != property.user_id and User.query.filter_by(id=viewer).first().role != 'admin'):
+            return jsonify({'message': "Property not found"}),HTTP_404_NOT_FOUND
+
     property.views = (property.views or 0) + 1
 
     # Record a server-side analytics pageview for this property so property
@@ -887,7 +894,7 @@ def browse_properties():
     bathrooms = request.args.get('bathrooms', type=int)
     available = request.args.get('available', type=int)
 
-    query = Property.query
+    query = Property.query.filter(Property.disabled == 0)
 
     if category:
         query = query.filter_by(category=category)
@@ -1108,6 +1115,7 @@ def edit_property(id):
     property.year_built=year_built
     property.amenities=amenities_str 
     property.available=available
+    property.disabled=disabled
     property.contact_phone=contact_phone
     property.contact_email=contact_email
     property.contact_website=contact_website
