@@ -820,6 +820,7 @@ def browse_properties():
     country = request.args.get('country')
     min_price = request.args.get('min_price', type=float)
     max_price = request.args.get('max_price', type=float)
+    sort = request.args.get('sort')
 
     query = Property.query
 
@@ -840,7 +841,16 @@ def browse_properties():
     if max_price is not None:
         query = query.filter(Property.price <= max_price)
 
-    query = query.order_by(Property.created_at.desc())
+    if sort == 'views':
+        query = query.order_by(Property.views.desc(), Property.created_at.desc())
+    elif sort == 'popular':
+        query = query.order_by(Property.views.desc(), Property.created_at.desc())
+    elif sort == 'price_asc':
+        query = query.order_by(Property.price.asc())
+    elif sort == 'price_desc':
+        query = query.order_by(Property.price.desc())
+    else:
+        query = query.order_by(Property.created_at.desc())
     properties = query.paginate(page=page, per_page=per_page, error_out=False)
 
     data = []
