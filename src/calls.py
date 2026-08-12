@@ -13,15 +13,21 @@ calls = Blueprint("calls", __name__, url_prefix="/api/v1/calls")
 # Ringing calls that were never answered expire after this long (seconds).
 RING_TIMEOUT = 60
 
+# A user is considered online if their last heartbeat is within this window.
+ONLINE_WINDOW = datetime.timedelta(minutes=2)
+
 
 def call_user(u):
     if not u:
         return None
+    online = u.last_seen is not None and (datetime.now() - u.last_seen <= ONLINE_WINDOW)
     return {
         'id': u.id,
         'username': u.username,
         'full_name': u.full_name,
         'profile_picture': u.profile_picture,
+        'online': online,
+        'last_seen': u.last_seen,
     }
 
 
