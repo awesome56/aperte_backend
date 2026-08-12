@@ -332,10 +332,17 @@ def stream():
         last_unread = -1
         poll_interval = 2.0
         heartbeat_at = time.time()
+        last_event_at = time.time()
 
         try:
             while True:
                 now = datetime.now()
+                emitted = False
+
+                def emit(event, data):
+                    nonlocal emitted
+                    emitted = True
+                    return sse(event, data)
 
                 # ---- new messages (incoming or sent from another tab) ----
                 new_msgs = Message.query.filter(
@@ -345,7 +352,7 @@ def stream():
                 for m in new_msgs:
                     if m.id > last_id:
                         last_id = m.id
-                    yield sse('message', {
+                    yield emit('message', {
                         'message': serialize_message(m),
                         'unread_count': Message.query.filter(
                             Message.receiver_id == me, Message.read == 0
@@ -366,7 +373,7 @@ def stream():
                         sent_state[m.id] = state
                     elif prev != state:
                         sent_state[m.id] = state
-                        yield sse('status', {
+                        yield emit('status', {
                             'message_id': m.id,
                             'delivered': m.delivered or 0,
                             'read': m.read or 0,
@@ -379,14 +386,18 @@ def stream():
                 ).order_by(Message.created_at.desc()).limit(200).all():
                     other = m.receiver_id if m.sender_id == me else m.sender_id
                     counterpart_ids.add(other)
-                for uid in list(counterpart_ids)[:50]:
-                    u = User.query.filter_by(id=uid).first()
-                    if not u:
-                        continue
+                # batch the user lookups into a single query (one per cycle,
+                # not one per counterpart — keeps 200 streams cheap)
+                counterpart_users = {
+                    u.id: u for u in User.query.filter(
+                        User.id.in_(list(counterpart_ids)[:50])
+                    ).all()
+                }
+                for uid, u in counterpart_users.items():
                     online = u.last_seen is not None and (now - u.last_seen <= ONLINE_WINDOW)
                     if presence_state.get(uid) != online:
                         presence_state[uid] = online
-                        yield sse('presence', {
+                        yield emit('presence', {
                             'user_id': uid,
                             'online': online,
                             'last_seen': u.last_seen,
@@ -396,7 +407,7 @@ def stream():
                 unread = Message.query.filter(Message.receiver_id == me, Message.read == 0).count()
                 if unread != last_unread:
                     last_unread = unread
-                    yield sse('unread', {'unread_count': unread})
+                    yield emit('unread', {'unread_count': unread})
 
                 # ---- call lifecycle events ----
                 from src.database import Call
@@ -409,15 +420,31 @@ def stream():
                     if prev is None:
                         # new call appeared: notify (callee gets 'call', caller gets it too)
                         call_state[c.id] = c.status
-                        yield sse('call', {'call': _serialize_call(c)})
+                        yield emit('call', {'call': _serialize_call(c)})
                     elif prev != c.status:
                         call_state[c.id] = c.status
-                        yield sse('call_update', {'call': _serialize_call(c)})
+                        yield emit('call_update', {'call': _serialize_call(c)})
 
                 # keep the connection alive (proxies / Cloudflare idle timeouts)
                 if time.time() - heartbeat_at > 15:
                     heartbeat_at = time.time()
                     yield ": ping\n\n"
+
+                if emitted:
+                    last_event_at = time.time()
+
+                # Release the DB connection back to the pool before sleeping.
+                # Without this every stream would pin a Postgres connection
+                # forever and exhaust the pool at scale.
+                db.session.rollback()
+
+                # Adaptive poll: 2s while there is recent activity (calls,
+                # chats), back off to 5s once things are quiet — keeps the
+                # DB load of many idle streams low.
+                if time.time() - last_event_at > 30:
+                    poll_interval = 5.0
+                else:
+                    poll_interval = 2.0
 
                 time.sleep(poll_interval)
         except GeneratorExit:
