@@ -778,6 +778,8 @@ def get_properties(id):
             'state': property.state,
             'country': property.country,
             'dp': dp_url,  # Use dp_url to access the image_url
+            'image_count': PropertyImage.query.filter_by(property_id=property.id).count(),
+            'video_count': PropertyVideo.query.filter_by(property_id=property.id).count(),
             'approved': property.approved,
             'available': property.available,
             'views': property.views,
@@ -877,6 +879,8 @@ def browse_properties():
             'state': property.state,
             'country': property.country,
             'dp': dp_url,
+            'image_count': PropertyImage.query.filter_by(property_id=property.id).count(),
+            'video_count': PropertyVideo.query.filter_by(property_id=property.id).count(),
             'approved': property.approved,
             'available': property.available,
             'views': property.views,
