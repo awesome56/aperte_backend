@@ -105,7 +105,7 @@ def register():
     return jsonify({
         'message': "User created",
         'user': {
-            'full_name': full_name, 'username' : username, 'email' : email, 'email_verified': 0
+            'id': user.id, 'full_name': full_name, 'username' : username, 'email' : email, 'email_verified': 0
         }
     }), HTTP_201_CREATED
 
@@ -189,6 +189,7 @@ def login():
 
             return jsonify({
                 'user': {
+                    'id': user.id,
                     'refresh': refresh,
                     'access': access,
                     'full_name': user.full_name,
@@ -269,6 +270,7 @@ def verify_password(email):
 
     return jsonify({
         'user': {
+            'id': user.id,
             'refresh': refresh,
             'access': access,
             'full_name': user.full_name,
