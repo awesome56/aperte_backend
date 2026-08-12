@@ -55,7 +55,10 @@ def create_app(test_config=None):
             SWAGGER={
                 'title': "Aperte API",
                 'uiversion': 3
-            }
+            },
+            TURN_SECRET=os.environ.get('TURN_SECRET'),
+            TURN_REALM=os.environ.get('TURN_REALM'),
+            TURN_URLS=[u for u in (os.environ.get('TURN_URLS') or '').split(',') if u] or None,
         )
     else:
         app.config.from_mapping(test_config)

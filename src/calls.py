@@ -2,11 +2,15 @@ from src.constants.http_status_codes import HTTP_400_BAD_REQUEST
 from src.constants.http_status_codes import HTTP_404_NOT_FOUND
 from src.constants.http_status_codes import HTTP_200_OK
 from src.constants.http_status_codes import HTTP_201_CREATED
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from src.database import db, User, Call, CallSignal
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 import uuid
+import hmac
+import hashlib
+import base64
+import time as _time
 
 calls = Blueprint("calls", __name__, url_prefix="/api/v1/calls")
 
@@ -43,6 +47,35 @@ def serialize_call(c):
         'ended_by': c.ended_by,
         'created_at': c.created_at,
     }
+
+
+@calls.get("/turn-credentials")
+@jwt_required()
+def turn_credentials():
+    """Short-lived TURN credentials for WebRTC media relay.
+
+    Generated from a static auth secret using the TURN REST API scheme
+    (username = expiry timestamp, credential = HMAC-SHA1). Configured via
+    TURN_SECRET / TURN_REALM / TURN_URL environment variables.
+    """
+    secret = current_app.config.get('TURN_SECRET')
+    realm = current_app.config.get('TURN_REALM') or 'aperte'
+    urls = current_app.config.get('TURN_URLS')
+
+    if not secret or not urls:
+        return jsonify({'error': "TURN server is not configured"}), HTTP_404_NOT_FOUND
+
+    expiry = int(_time.time()) + 3600
+    username = str(expiry)
+    credential = base64.b64encode(
+        hmac.new(secret.encode(), '{}:{}'.format(username, realm).encode(), hashlib.sha1).digest()
+    ).decode()
+
+    return jsonify({
+        'urls': urls if isinstance(urls, list) else [urls],
+        'username': username,
+        'credential': credential,
+    }), HTTP_200_OK
 
 
 @calls.post("/")
