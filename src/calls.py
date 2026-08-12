@@ -5,7 +5,7 @@ from src.constants.http_status_codes import HTTP_201_CREATED
 from flask import Blueprint, request, jsonify
 from src.database import db, User, Call, CallSignal
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 
 calls = Blueprint("calls", __name__, url_prefix="/api/v1/calls")
@@ -14,7 +14,7 @@ calls = Blueprint("calls", __name__, url_prefix="/api/v1/calls")
 RING_TIMEOUT = 60
 
 # A user is considered online if their last heartbeat is within this window.
-ONLINE_WINDOW = datetime.timedelta(minutes=2)
+ONLINE_WINDOW = timedelta(minutes=2)
 
 
 def call_user(u):
