@@ -58,6 +58,15 @@ All endpoints are prefixed with `/api/v1`.
 | GET | `/favorites/` | List the authenticated user's favorite properties (paginated) |
 | GET | `/favorites/check/{id}` | Check if a property is favorited by the current user |
 
+#### Messages
+| Method | Endpoint | Description |
+| ------ | -------- | ----------- |
+| POST | `/messages/` | Send a message (optionally quoting a `property_id` or `request_id` so the owner knows where it came from) |
+| GET | `/messages/conversations` | List conversations (with unread counts), filterable by `property_id`/`request_id` |
+| GET | `/messages/conversation/{user_id}` | Message thread with a user (marks incoming as read) |
+| GET | `/messages/unread-count` | Total unread messages |
+| DELETE | `/messages/{id}` | Delete a message (sender or receiver) |
+
 #### Tracking / Analytics
 | Method | Endpoint | Description |
 | ------ | -------- | ----------- |

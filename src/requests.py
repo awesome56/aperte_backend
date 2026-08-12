@@ -158,6 +158,64 @@ def create_requests():
     }), HTTP_201_CREATED
 
 
+@requests.route("/")
+def browse_requests():
+
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 12, type=int)
+    city = request.args.get('city')
+    state = request.args.get('state')
+    country = request.args.get('country')
+    property_type = request.args.get('property_type')
+
+    query = Request.query
+
+    if city:
+        query = query.filter(Request.city.ilike('%{}%'.format(city)))
+    if state:
+        query = query.filter(Request.state.ilike('%{}%'.format(state)))
+    if country:
+        query = query.filter(Request.country.ilike('%{}%'.format(country)))
+    if property_type:
+        query = query.filter(Request.property_type == property_type)
+
+    items = query.order_by(Request.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    data = []
+    for r in items.items:
+        user = User.query.filter_by(id=r.user_id).first()
+        data.append({
+            'id': r.id,
+            'user_id': r.user_id,
+            'username': user.username if user else None,
+            'title': r.title,
+            'description': r.description,
+            'property_type': r.property_type,
+            'sub_category': r.sub_category,
+            'min_price': r.min_price,
+            'max_price': r.max_price,
+            'bedrooms': r.bedrooms,
+            'bathrooms': r.bathrooms,
+            'location': r.location,
+            'city': r.city,
+            'state': r.state,
+            'country': r.country,
+            'created_at': r.created_at,
+        })
+
+    meta={
+        "page": items.page,
+        "pages": items.pages,
+        "total_count": items.total,
+        "prev_page": items.prev_num,
+        "next_page": items.next_num,
+        "has_next": items.has_next,
+        "has_prev": items.has_prev
+    }
+
+    return jsonify({'data': data, 'meta': meta}), HTTP_200_OK
+
+
 @requests.get("/<int:id>")
 @swag_from('./docs/requests/getrequest.yml')
 def get_property(id):
