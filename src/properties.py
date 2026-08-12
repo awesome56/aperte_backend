@@ -440,6 +440,66 @@ def delete_video(id):
     return jsonify({}), HTTP_204_NO_CONTENT
 
 
+@properties.get("/analytics/mine")
+@jwt_required()
+def my_analytics():
+    """Personal analytics for the current user's listings and requests."""
+    me = get_jwt_identity()
+
+    from src.database import Booking, Request, Message
+
+    props = Property.query.filter_by(user_id=me).all()
+
+    per_property = []
+    total_views = 0
+    total_favorites = 0
+    for p in props:
+        dp = PropertyImage.query.filter_by(property_id=p.id, dp=1).first()
+        bookings = Booking.query.filter_by(property_id=p.id).all()
+        b_counts = {'total': len(bookings), 'pending': 0, 'confirmed': 0, 'completed': 0, 'cancelled': 0}
+        for b in bookings:
+            if b.status in b_counts:
+                b_counts[b.status] += 1
+        total_views += p.views or 0
+        total_favorites += Favorite.query.filter_by(property_id=p.id).count()
+        per_property.append({
+            'id': p.id,
+            'title': p.title,
+            'dp': dp.image_url if dp else "",
+            'views': p.views or 0,
+            'favorites': Favorite.query.filter_by(property_id=p.id).count(),
+            'bookings': b_counts,
+            'created_at': p.created_at,
+        })
+
+    reqs = Request.query.filter_by(user_id=me).all()
+    requests_out = []
+    for r in reqs:
+        responses = Message.query.filter(
+            Message.request_id == r.id, Message.receiver_id == me
+        ).count()
+        requests_out.append({
+            'id': r.id,
+            'title': r.title,
+            'responses': responses,
+            'created_at': r.created_at,
+        })
+
+    return jsonify({
+        'totals': {
+            'properties': len(props),
+            'views': total_views,
+            'favorites': total_favorites,
+            'requests': len(reqs),
+            'request_responses': sum(r['responses'] for r in requests_out),
+            'messages_received': Message.query.filter(Message.receiver_id == me).count(),
+            'messages_sent': Message.query.filter(Message.sender_id == me).count(),
+        },
+        'properties': per_property,
+        'requests': requests_out,
+    }), HTTP_200_OK
+
+
 @properties.get("/<int:id>")
 @jwt_required(optional=True)
 @swag_from('./docs/properties/getproperty.yml')
