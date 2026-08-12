@@ -849,6 +849,7 @@ def get_properties(id):
             'video_count': PropertyVideo.query.filter_by(property_id=property.id).count(),
             'approved': property.approved,
             'available': property.available,
+            'disabled': property.disabled,
             'views': property.views,
             'favorites_count': Favorite.query.filter_by(property_id=property.id).count(),
             'created_at': property.created_at,
