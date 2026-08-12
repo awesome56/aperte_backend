@@ -4,12 +4,14 @@ from src.constants.http_status_codes import HTTP_404_NOT_FOUND
 from src.constants.http_status_codes import HTTP_200_OK
 from src.constants.http_status_codes import HTTP_201_CREATED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response, current_app
 from src.database import db, User, Message, Property, Request, PropertyImage
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from sqlalchemy import or_, and_, func
 from flasgger import swag_from
+import json
+import time
 
 messages = Blueprint("messages", __name__, url_prefix="/api/v1/messages")
 
@@ -293,3 +295,121 @@ def delete_message(id):
     db.session.commit()
 
     return jsonify({}), HTTP_204_NO_CONTENT
+
+
+def sse(event, data):
+    return "event: {}\ndata: {}\n\n".format(event, json.dumps(data, default=str))
+
+
+@messages.get("/stream")
+@jwt_required()
+def stream():
+    """Server-Sent Events stream for the current user.
+
+    Emits 'message' (new message), 'status' (sent message delivered/seen),
+    'presence' (conversation counterpart online/offline) and 'unread'
+    events. The backend DB-polls every 2 seconds inside the stream so no
+    pub/sub infra is needed and it works across gunicorn workers.
+    """
+    me = get_jwt_identity()
+    # capture the app while the request context is alive — the generator runs
+    # after the context is torn down, so it pushes its own app context
+    app = current_app._get_current_object()
+
+    def generate():
+        # The generator outlives the request context, so push an app context
+        # for the whole lifetime of the stream (DB access needs it).
+        app_ctx = app.app_context()
+        app_ctx.push()
+
+        last_id = 0
+        # snapshot of my sent messages' delivery state (message_id -> (delivered, read))
+        sent_state = {}
+        # snapshot of counterparts' presence (user_id -> online)
+        presence_state = {}
+        last_unread = -1
+        poll_interval = 2.0
+        heartbeat_at = time.time()
+
+        try:
+            while True:
+                now = datetime.now()
+
+                # ---- new messages (incoming or sent from another tab) ----
+                new_msgs = Message.query.filter(
+                    Message.id > last_id,
+                    or_(Message.sender_id == me, Message.receiver_id == me),
+                ).order_by(Message.id.asc()).limit(25).all()
+                for m in new_msgs:
+                    if m.id > last_id:
+                        last_id = m.id
+                    yield sse('message', {
+                        'message': serialize_message(m),
+                        'unread_count': Message.query.filter(
+                            Message.receiver_id == me, Message.read == 0
+                        ).count(),
+                    })
+                if new_msgs:
+                    sent_state = {}
+
+                # ---- status changes on my sent messages ----
+                sent = Message.query.filter(
+                    Message.sender_id == me,
+                    Message.id <= last_id,
+                ).order_by(Message.id.desc()).limit(50).all()
+                for m in sent:
+                    prev = sent_state.get(m.id)
+                    state = (m.delivered or 0, m.read or 0)
+                    if prev is None:
+                        sent_state[m.id] = state
+                    elif prev != state:
+                        sent_state[m.id] = state
+                        yield sse('status', {
+                            'message_id': m.id,
+                            'delivered': m.delivered or 0,
+                            'read': m.read or 0,
+                        })
+
+                # ---- presence changes for conversation counterparts ----
+                counterpart_ids = set()
+                for m in Message.query.filter(
+                    or_(Message.sender_id == me, Message.receiver_id == me),
+                ).order_by(Message.created_at.desc()).limit(200).all():
+                    other = m.receiver_id if m.sender_id == me else m.sender_id
+                    counterpart_ids.add(other)
+                for uid in list(counterpart_ids)[:50]:
+                    u = User.query.filter_by(id=uid).first()
+                    if not u:
+                        continue
+                    online = u.last_seen is not None and (now - u.last_seen <= ONLINE_WINDOW)
+                    if presence_state.get(uid) != online:
+                        presence_state[uid] = online
+                        yield sse('presence', {
+                            'user_id': uid,
+                            'online': online,
+                            'last_seen': u.last_seen,
+                        })
+
+                # ---- unread count changes ----
+                unread = Message.query.filter(Message.receiver_id == me, Message.read == 0).count()
+                if unread != last_unread:
+                    last_unread = unread
+                    yield sse('unread', {'unread_count': unread})
+
+                # keep the connection alive (proxies / Cloudflare idle timeouts)
+                if time.time() - heartbeat_at > 15:
+                    heartbeat_at = time.time()
+                    yield ": ping\n\n"
+
+                time.sleep(poll_interval)
+        except GeneratorExit:
+            pass
+        finally:
+            app_ctx.pop()
+
+    headers = {
+        'Cache-Control': 'no-store',
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive',
+    }
+    return Response(generate(), mimetype='text/event-stream', headers=headers)
