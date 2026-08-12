@@ -8,7 +8,7 @@ from sqlalchemy import case, text
 import csv
 import io
 
-analytics_bp = Blueprint("admin_analytics", __name__, url_prefix="/api/v1/admin/analytics")
+analytics_bp = Blueprint("admin_analytics", __name__, url_prefix="/api/v1/admin/insights")
 
 SESSION_TIMEOUT = timedelta(minutes=30)
 

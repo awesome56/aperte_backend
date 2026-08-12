@@ -63,16 +63,16 @@ All endpoints are prefixed with `/api/v1`.
 | ------ | -------- | ----------- |
 | POST | `/tracking/batch` | Batched analytics ingestion (page views, events, performance, errors, sessions) |
 | POST | `/tracking/pageview` | Record a single page view (backward compatible) |
-| GET | `/admin/analytics/overview` | KPIs with previous-period comparison, traffic over time, sources, top properties |
-| GET | `/admin/analytics/traffic` | Visitors/sessions/page views over time + traffic sources + UTM campaigns |
-| GET | `/admin/analytics/content` | Most/least visited pages, landing/exit pages, most viewed properties |
-| GET | `/admin/analytics/properties` | Property analytics list, or per-property detail via `?property_id=` |
-| GET | `/admin/analytics/audience` | Devices, browsers, operating systems, countries, screen sizes |
-| GET | `/admin/analytics/performance` | Avg TTFB/FCP/LCP/CLS/load time, slowest pages, JS errors, failed requests |
-| GET | `/admin/analytics/events` | Tracked events + search terms |
-| GET | `/admin/analytics/realtime` | Active visitors, pages currently being viewed, recent activity |
-| GET | `/admin/analytics/export?format=csv` | Export raw analytics as CSV for the selected date range |
-| POST | `/admin/analytics/prune?days=N` | Delete analytics data older than N days (retention) |
+| GET | `/admin/insights/overview` | KPIs with previous-period comparison, traffic over time, sources, top properties |
+| GET | `/admin/insights/traffic` | Visitors/sessions/page views over time + traffic sources + UTM campaigns |
+| GET | `/admin/insights/content` | Most/least visited pages, landing/exit pages, most viewed properties |
+| GET | `/admin/insights/properties` | Property analytics list, or per-property detail via `?property_id=` |
+| GET | `/admin/insights/audience` | Devices, browsers, operating systems, countries, screen sizes |
+| GET | `/admin/insights/performance` | Avg TTFB/FCP/LCP/CLS/load time, slowest pages, JS errors, failed requests |
+| GET | `/admin/insights/events` | Tracked events + search terms |
+| GET | `/admin/insights/realtime` | Active visitors, pages currently being viewed, recent activity |
+| GET | `/admin/insights/export?format=csv` | Export raw analytics as CSV for the selected date range |
+| POST | `/admin/insights/prune?days=N` | Delete analytics data older than N days (retention) |
 
 All analytics reports accept `?start=YYYY-MM-DD&end=YYYY-MM-DD` date filters. Tracking uses anonymous visitor/session IDs (first-party localStorage/sessionStorage, no cookies, no IPs stored); country is approximated from Cloudflare's `CF-IPCountry` header where available. Property listings track `views` (incremented on detail view) and `favorites_count`; the admin dashboard shows the most viewed and most favorited properties.
 
