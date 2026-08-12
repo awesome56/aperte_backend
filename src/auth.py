@@ -369,12 +369,17 @@ def heartbeat():
         return jsonify({'error': "User not found"}), HTTP_404_NOT_FOUND
 
     user.last_seen = datetime.now()
-    db.session.commit()
 
     from src.database import Message
+    # The client is running, so incoming messages are delivered (not yet read).
+    delivered_now = Message.query.filter(
+        Message.receiver_id == user_id, Message.delivered == 0
+    ).update({'delivered': 1})
     unread = Message.query.filter(Message.receiver_id == user_id, Message.read == 0).count()
 
-    return jsonify({'unread_count': unread, 'last_seen': user.last_seen}), HTTP_200_OK
+    db.session.commit()
+
+    return jsonify({'unread_count': unread, 'delivered_count': delivered_now, 'last_seen': user.last_seen}), HTTP_200_OK
 
 @auth.get("/token/refresh")
 @jwt_required(refresh=True)

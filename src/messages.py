@@ -68,6 +68,7 @@ def serialize_message(m):
         'receiver_id': m.receiver_id,
         'body': m.body,
         'read': m.read,
+        'delivered': m.delivered,
         'property_id': m.property_id,
         'request_id': m.request_id,
         'created_at': m.created_at,
@@ -233,11 +234,12 @@ def conversation(user_id):
 
     msgs = q.order_by(Message.created_at.desc()).paginate(page=page, per_page=per_page)
 
-    # Mark incoming messages as read
-    unread = Message.query.filter(
-        Message.sender_id == user_id, Message.receiver_id == me, Message.read == 0
+    # Mark incoming messages as delivered and read (thread is open)
+    incoming = Message.query.filter(
+        Message.sender_id == user_id, Message.receiver_id == me
     ).all()
-    for m in unread:
+    for m in incoming:
+        m.delivered = 1
         m.read = 1
     db.session.commit()
 

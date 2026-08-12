@@ -90,6 +90,7 @@ class Message(db.Model):
     property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=True)
     body = db.Column(db.Text, nullable=False)
     read = db.Column(db.Integer, default=0)
+    delivered = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.now())
     updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
 
