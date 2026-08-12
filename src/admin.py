@@ -349,6 +349,27 @@ def get_users():
     return jsonify({'data': data, 'meta': meta}), HTTP_200_OK
 
 
+@admin.put("/users/<int:id>/verify")
+@permission_required('users.verify')
+def verify_user(id):
+    user = User.query.filter_by(id=id).first()
+
+    if not user:
+        return jsonify({'error': "User not found"}), HTTP_404_NOT_FOUND
+
+    data = request.get_json(silent=True) or {}
+    verified = data.get('verified', True)
+
+    user.email_verified = 1 if verified else 0
+    user.updated_at = datetime.now()
+    db.session.commit()
+
+    return jsonify({
+        'message': "User verified" if verified else "User unverified",
+        'user': user_summary(user),
+    }), HTTP_200_OK
+
+
 @admin.put("/users/<int:id>/role")
 @permission_required('users.assign_role')
 @swag_from('./docs/admin/userrole.yml')

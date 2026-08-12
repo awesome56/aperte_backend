@@ -18,6 +18,7 @@ PERMISSION_CATALOG = [
     # Users
     {'name': 'users.view', 'description': 'View all users'},
     {'name': 'users.manage', 'description': 'Delete users'},
+    {'name': 'users.verify', 'description': 'Manually verify or unverify users'},
     # Roles & permissions
     {'name': 'roles.view', 'description': 'View roles and their permissions'},
     {'name': 'roles.manage', 'description': 'Create/edit/delete roles'},
@@ -56,6 +57,7 @@ BUILTIN_ROLES = [
             'properties.edit',
             'properties.delete',
             'users.view',
+            'users.verify',
             'users.assign_role',
             'bookings.view',
         ],
