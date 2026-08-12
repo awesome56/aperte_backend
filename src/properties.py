@@ -8,7 +8,7 @@ from src.constants.http_status_codes import HTTP_202_ACCEPTED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
 from src.constants.http_status_codes import HTTP_500_INTERNAL_SERVER_ERROR
 from flask import Blueprint, request
-from src.database import User, Property, Message, PropertyImage, PropertyVideo, Request, Review, Favorite, db
+from src.database import User, Property, Message, PropertyImage, PropertyVideo, Request, Review, Favorite, PropertyClaim, db
 from flask import Blueprint, request, jsonify
 from src.constants.functions import adjust_url
 from src.constants.property_meta import is_valid_category, is_valid_purpose
@@ -108,6 +108,7 @@ def serialize_property(property):
         'owner_full_name': user.full_name,
         'owner_email': user.email,
         'owner_phone_number': user.phone_number,
+        'owner_is_admin': user.role == 'admin',
         'contact_phone': property.contact_phone,
         'contact_email': property.contact_email,
         'contact_website': property.contact_website,
@@ -439,6 +440,7 @@ def delete_video(id):
 
 
 @properties.get("/<int:id>")
+@jwt_required(optional=True)
 @swag_from('./docs/properties/getproperty.yml')
 def get_property(id):
 
@@ -465,13 +467,77 @@ def get_property(id):
             'property_id': property.id,
             'screen_size': request.headers.get('X-Screen-Size'),
         }
-        ingest_batch([item], request.headers.get('User-Agent', ''), request.headers.get('CF-IPCountry'), None)
+        ingest_batch([item], request.headers.get('User-Agent', ''), request.headers.get('CF-IPCountry'), get_jwt_identity())
     except Exception:
         db.session.rollback()
         property.views = (property.views or 0) + 1
         db.session.commit()
 
-    return jsonify(serialize_property(property)), HTTP_200_OK
+    data = serialize_property(property)
+
+    # claim status for the current user (optional auth)
+    current_user = get_jwt_identity()
+    if current_user is not None:
+        claim = PropertyClaim.query.filter_by(
+            property_id=property.id, user_id=current_user
+        ).order_by(PropertyClaim.created_at.desc()).first()
+        data['claim_status'] = claim.status if claim else None
+
+    return jsonify(data), HTTP_200_OK
+
+
+@properties.post("/<int:id>/claim")
+@jwt_required()
+def claim_property(id):
+    current_user = get_jwt_identity()
+
+    property = Property.query.filter_by(id=id).first()
+
+    if not property:
+        return jsonify({'error': "Property not found"}), HTTP_404_NOT_FOUND
+
+    owner = User.query.filter_by(id=property.user_id).first()
+    if not owner or owner.role != 'admin':
+        return jsonify({'error': "This property is not claimable"}), HTTP_400_BAD_REQUEST
+
+    if property.user_id == current_user:
+        return jsonify({'error': "You already own this property"}), HTTP_400_BAD_REQUEST
+
+    # one pending claim at a time keeps things clean
+    existing_pending = PropertyClaim.query.filter_by(
+        property_id=id, status='pending'
+    ).first()
+    if existing_pending:
+        return jsonify({'error': "A claim for this property is already pending review"}), HTTP_400_BAD_REQUEST
+
+    mine = PropertyClaim.query.filter_by(property_id=id, user_id=current_user).first()
+    if mine:
+        if mine.status == 'approved':
+            return jsonify({'error': "You already own this property"}), HTTP_400_BAD_REQUEST
+        if mine.status == 'rejected':
+            # allow a rejected user to try again
+            mine.status = 'pending'
+            mine.updated_at = datetime.now()
+            db.session.commit()
+            return jsonify({
+                'message': "Claim submitted for review",
+                'claim': {'id': mine.id, 'status': mine.status},
+            }), HTTP_201_CREATED
+
+    claim = PropertyClaim(
+        property_id=id,
+        user_id=current_user,
+        status='pending',
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+    db.session.add(claim)
+    db.session.commit()
+
+    return jsonify({
+        'message': "Claim submitted for review",
+        'claim': {'id': claim.id, 'status': claim.status},
+    }), HTTP_201_CREATED
 
 
 @properties.route('/user/<int:id>/', methods=['GET'])

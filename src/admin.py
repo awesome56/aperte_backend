@@ -6,7 +6,7 @@ from src.constants.http_status_codes import HTTP_200_OK
 from src.constants.http_status_codes import HTTP_201_CREATED
 from src.constants.http_status_codes import HTTP_204_NO_CONTENT
 from flask import Blueprint, request, jsonify
-from src.database import db, User, Property, Booking, Room, PropertyImage, Role, Permission, role_permissions, Favorite, PageVisit
+from src.database import db, User, Property, Booking, Room, PropertyImage, Role, Permission, role_permissions, Favorite, PageVisit, PropertyClaim
 from src.constants.permissions import permission_required, PERMISSION_CATALOG
 from flask_jwt_extended import get_jwt_identity
 from datetime import datetime
@@ -347,6 +347,102 @@ def get_users():
     }
 
     return jsonify({'data': data, 'meta': meta}), HTTP_200_OK
+
+
+@admin.get("/claims")
+@permission_required('properties.approve')
+def list_claims():
+    status = request.args.get('status', 'pending')
+
+    query = PropertyClaim.query
+    if status:
+        query = query.filter(PropertyClaim.status == status)
+
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+
+    claims = query.order_by(PropertyClaim.created_at.desc()).paginate(page=page, per_page=per_page)
+
+    data = []
+    for c in claims.items:
+        p = Property.query.filter_by(id=c.property_id).first()
+        u = User.query.filter_by(id=c.user_id).first()
+        dp = PropertyImage.query.filter_by(property_id=c.property_id, dp=1).first()
+        data.append({
+            'id': c.id,
+            'status': c.status,
+            'created_at': c.created_at,
+            'updated_at': c.updated_at,
+            'property': {
+                'id': c.property_id,
+                'title': p.title if p else 'Property #{}'.format(c.property_id),
+                'price': p.price if p else None,
+                'currency': p.currency if p else None,
+                'city': p.city if p else None,
+                'state': p.state if p else None,
+                'dp': dp.image_url if dp else "",
+            },
+            'user': {
+                'id': c.user_id,
+                'username': u.username if u else None,
+                'full_name': u.full_name if u else None,
+                'email': u.email if u else None,
+            },
+        })
+
+    meta = {
+        "page": claims.page,
+        "pages": claims.pages,
+        "total_count": claims.total,
+        "prev_page": claims.prev_num,
+        "next_page": claims.next_num,
+        "has_next": claims.has_next,
+        "has_prev": claims.has_prev,
+    }
+
+    return jsonify({'data': data, 'meta': meta}), HTTP_200_OK
+
+
+@admin.put("/claims/<int:claim_id>")
+@permission_required('properties.approve')
+def decide_claim(claim_id):
+    claim = PropertyClaim.query.filter_by(id=claim_id).first()
+
+    if not claim:
+        return jsonify({'error': "Claim not found"}), HTTP_404_NOT_FOUND
+
+    if claim.status != 'pending':
+        return jsonify({'error': "Claim has already been decided"}), HTTP_400_BAD_REQUEST
+
+    data = request.get_json(silent=True) or {}
+    approved = data.get('approved', True)
+
+    if approved:
+        property_ = Property.query.filter_by(id=claim.property_id).first()
+        if not property_:
+            return jsonify({'error': "Property not found"}), HTTP_404_NOT_FOUND
+        claimant = User.query.filter_by(id=claim.user_id).first()
+        if not claimant:
+            return jsonify({'error': "Claimant not found"}), HTTP_404_NOT_FOUND
+
+        # transfer ownership to the claimant
+        property_.user_id = claimant.id
+        property_.updated_at = datetime.now()
+        claim.status = 'approved'
+
+        # any other pending claim on this property is now moot
+        PropertyClaim.query.filter(
+            PropertyClaim.property_id == claim.property_id,
+            PropertyClaim.id != claim.id,
+            PropertyClaim.status == 'pending',
+        ).update({'status': 'rejected', 'updated_at': datetime.now()})
+    else:
+        claim.status = 'rejected'
+
+    claim.updated_at = datetime.now()
+    db.session.commit()
+
+    return jsonify({'message': "Claim approved — ownership transferred" if approved else "Claim rejected"}), HTTP_200_OK
 
 
 @admin.put("/users/<int:id>/verify")

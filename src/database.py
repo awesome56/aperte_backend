@@ -199,6 +199,22 @@ class Favorite(db.Model):
         return f'Favorite ID: {self.id} - User ID: {self.user_id} - Property ID: {self.property_id}'
 
 
+class PropertyClaim(db.Model):
+    """A user's request to take over ownership of an admin-listed property."""
+
+    __tablename__ = 'property_claim'
+
+    id = db.Column(db.Integer, primary_key=True)
+    property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    status = db.Column(db.String(20), default='pending', index=True)  # pending | approved | rejected
+    created_at = db.Column(db.DateTime, default=datetime.now())
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
+
+    def __repr__(self):
+        return f'PropertyClaim ID: {self.id} - Property {self.property_id} - {self.status}'
+
+
 class PropertyImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)
