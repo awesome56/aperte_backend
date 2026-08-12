@@ -405,3 +405,39 @@ class AnalyticsEvent(db.Model):
 
     def __repr__(self):
         return f'AnalyticsEvent ID: {self.id} - {self.event_type} - {self.path}'
+
+
+class Call(db.Model):
+    """In-app voice/video call between two users (WebRTC)."""
+
+    __tablename__ = 'call'
+
+    id = db.Column(db.String(36), primary_key=True)
+    caller_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    callee_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    call_type = db.Column(db.String(10), default='audio')  # audio | video
+    status = db.Column(db.String(20), default='ringing', index=True)  # ringing | active | ended | declined | missed
+    ended_by = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    started_at = db.Column(db.DateTime, nullable=True)
+    ended_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+    updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
+
+    def __repr__(self):
+        return f'Call ID: {self.id} - {self.caller_id} -> {self.callee_id} - {self.status}'
+
+
+class CallSignal(db.Model):
+    """WebRTC signaling messages relayed between call participants."""
+
+    __tablename__ = 'call_signal'
+
+    id = db.Column(db.Integer, primary_key=True)
+    call_id = db.Column(db.String(36), db.ForeignKey('call.id', ondelete='CASCADE'), nullable=False, index=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    signal_type = db.Column(db.String(20), nullable=False)  # offer | answer | ice
+    payload = db.Column(db.Text, nullable=False)  # JSON
+    created_at = db.Column(db.DateTime, default=datetime.now(), index=True)
+
+    def __repr__(self):
+        return f'CallSignal ID: {self.id} - {self.signal_type}'

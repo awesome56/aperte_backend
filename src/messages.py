@@ -327,6 +327,8 @@ def stream():
         sent_state = {}
         # snapshot of counterparts' presence (user_id -> online)
         presence_state = {}
+        # snapshot of call states (call_id -> status)
+        call_state = {}
         last_unread = -1
         poll_interval = 2.0
         heartbeat_at = time.time()
@@ -395,6 +397,22 @@ def stream():
                 if unread != last_unread:
                     last_unread = unread
                     yield sse('unread', {'unread_count': unread})
+
+                # ---- call lifecycle events ----
+                from src.database import Call
+                from src.calls import serialize_call as _serialize_call
+                my_calls = Call.query.filter(
+                    or_(Call.caller_id == me, Call.callee_id == me),
+                ).order_by(Call.created_at.desc()).limit(20).all()
+                for c in my_calls:
+                    prev = call_state.get(c.id)
+                    if prev is None:
+                        # new call appeared: notify (callee gets 'call', caller gets it too)
+                        call_state[c.id] = c.status
+                        yield sse('call', {'call': _serialize_call(c)})
+                    elif prev != c.status:
+                        call_state[c.id] = c.status
+                        yield sse('call_update', {'call': _serialize_call(c)})
 
                 # keep the connection alive (proxies / Cloudflare idle timeouts)
                 if time.time() - heartbeat_at > 15:
