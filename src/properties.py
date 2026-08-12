@@ -517,32 +517,84 @@ def claim_property(id):
         if mine.status == 'approved':
             return jsonify({'error': "You already own this property"}), HTTP_400_BAD_REQUEST
         if mine.status == 'rejected':
-            # allow a rejected user to try again — restarts at verification
-            mine.status = 'pending_verification'
+            # allow a rejected user to try again — restarts the process
+            mine.status = None
             mine.updated_at = datetime.now()
-            db.session.commit()
             claim = mine
+            db.session.commit()
         else:
             return jsonify({'error': "A claim for this property is already in progress"}), HTTP_400_BAD_REQUEST
     else:
         claim = PropertyClaim(
             property_id=id,
             user_id=current_user,
-            status='pending_verification',
+            status=None,
             created_at=datetime.now(),
             updated_at=datetime.now(),
         )
         db.session.add(claim)
+        db.session.flush()
+
+    # ---- verification path ----
+    # Properties with a contact email verify with an emailed code
+    # (Google-style). Properties without one use document submission,
+    # reviewed by the admin.
+    if property.contact_email:
+        claim.status = 'pending_verification'
+        claim.updated_at = datetime.now()
         db.session.commit()
 
-    # Google-style verification: email a 6-digit code the claimant must enter
-    target_email = property.contact_email or User.query.filter_by(id=current_user).first().email
-    _send_claim_code(claim, property, target_email)
+        target_email = property.contact_email
+        _send_claim_code(claim, property, target_email)
+
+        return jsonify({
+            'message': "Claim started — a verification code was sent to {}".format(target_email),
+            'claim': {'id': claim.id, 'status': claim.status},
+            'verification_email': target_email,
+        }), HTTP_201_CREATED
+
+    # ---- document submission path ----
+    file = request.files.get('document') if request.files else None
+    if not file or not file.filename:
+        db.session.delete(claim)
+        db.session.commit()
+        return jsonify({'error': "This property has no contact email. Upload an ownership document to claim it."}), HTTP_400_BAD_REQUEST
+
+    filename = (file.filename or '').lower()
+    if not filename.endswith(('.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.webp')):
+        db.session.delete(claim)
+        db.session.commit()
+        return jsonify({'error': "Document must be a PDF, image or Word file"}), HTTP_400_BAD_REQUEST
+
+    # basic size guard (~15MB)
+    try:
+        file.stream.seek(0, 2)
+        size = file.stream.tell()
+        file.stream.seek(0)
+    except Exception:
+        size = 0
+    if size > 15 * 1024 * 1024:
+        db.session.delete(claim)
+        db.session.commit()
+        return jsonify({'error': "Document is too large (max 15MB)"}), HTTP_400_BAD_REQUEST
+
+    try:
+        from src.constants.storage import upload_file
+        document_url = upload_file(file, 'property_claims/{}'.format(current_user))
+    except Exception as e:
+        db.session.delete(claim)
+        db.session.commit()
+        return jsonify({'error': "Failed to upload document: {}".format(e)}), HTTP_400_BAD_REQUEST
+
+    claim.status = 'pending'
+    claim.document_url = document_url
+    claim.updated_at = datetime.now()
+    db.session.commit()
 
     return jsonify({
-        'message': "Claim started — a verification code was sent to {}".format(target_email),
+        'message': "Claim submitted — your document will be reviewed by the admin",
         'claim': {'id': claim.id, 'status': claim.status},
-        'verification_email': target_email,
+        'document_url': document_url,
     }), HTTP_201_CREATED
 
 

@@ -374,6 +374,7 @@ def list_claims():
         data.append({
             'id': c.id,
             'status': c.status,
+            'document_url': c.document_url,
             'created_at': c.created_at,
             'updated_at': c.updated_at,
             'property': {

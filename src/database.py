@@ -201,14 +201,20 @@ class Favorite(db.Model):
 
 
 class PropertyClaim(db.Model):
-    """A user's request to take over ownership of an admin-listed property."""
+    """A user's request to take over ownership of an admin-listed property.
+
+    Verification is email-code based when the property has a contact email;
+    otherwise the claimant uploads ownership documents reviewed by the admin
+    (document_url holds the uploaded proof).
+    """
 
     __tablename__ = 'property_claim'
 
     id = db.Column(db.Integer, primary_key=True)
     property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    status = db.Column(db.String(20), default='pending', index=True)  # pending | approved | rejected
+    status = db.Column(db.String(20), default='pending', index=True)  # pending_verification | pending | approved | rejected
+    document_url = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now())
     updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
 
