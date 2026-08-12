@@ -89,6 +89,8 @@ class Message(db.Model):
     request_id = db.Column(db.Integer, db.ForeignKey('request.id', ondelete='CASCADE'), nullable=True)
     property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=True)
     body = db.Column(db.Text, nullable=False)
+    voice_url = db.Column(db.String(500), nullable=True)
+    voice_duration = db.Column(db.Integer, nullable=True)
     read = db.Column(db.Integer, default=0)
     delivered = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.now())

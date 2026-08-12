@@ -62,6 +62,7 @@ All endpoints are prefixed with `/api/v1`.
 | Method | Endpoint | Description |
 | ------ | -------- | ----------- |
 | POST | `/messages/` | Send a message (optionally quoting a `property_id` or `request_id` so the owner knows where it came from) |
+| POST | `/messages/voice` | Upload a voice note (multipart audio file) and send it as a message |
 | GET | `/messages/conversations` | List conversations (with unread counts), filterable by `property_id`/`request_id` |
 | GET | `/messages/conversation/{user_id}` | Message thread with a user (marks incoming as read) |
 | GET | `/messages/unread-count` | Total unread messages |

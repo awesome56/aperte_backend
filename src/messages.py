@@ -69,6 +69,8 @@ def serialize_message(m):
         'sender_id': m.sender_id,
         'receiver_id': m.receiver_id,
         'body': m.body,
+        'voice_url': m.voice_url,
+        'voice_duration': m.voice_duration,
         'read': m.read,
         'delivered': m.delivered,
         'property_id': m.property_id,
@@ -151,6 +153,81 @@ def send_message():
         property_id=property_id,
         request_id=request_id,
         read=0,
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+    db.session.add(msg)
+    db.session.commit()
+
+    return jsonify(serialize_message(msg)), HTTP_201_CREATED
+
+
+@messages.post("/voice")
+@jwt_required()
+def send_voice_note():
+    """Upload a voice note (multipart audio file) and create the message."""
+    me = get_jwt_identity()
+
+    file = request.files.get('file')
+    if not file or not file.filename:
+        return jsonify({'error': "Voice note file is required"}), HTTP_400_BAD_REQUEST
+
+    # accept anything audio-ish; browsers send audio/webm, sometimes
+    # video/webm or octet-stream for MediaRecorder blobs
+    mimetype = (file.mimetype or '').lower()
+    filename = (file.filename or '').lower()
+    allowed_ext = filename.endswith(('.webm', '.ogg', '.oga', '.mp3', '.m4a', '.aac', '.wav', '.opus'))
+    if not allowed_ext and mimetype and not (
+        mimetype.startswith('audio/') or mimetype in ('video/webm', 'application/octet-stream')
+    ):
+        return jsonify({'error': "File must be an audio file"}), HTTP_400_BAD_REQUEST
+
+    receiver_id = request.form.get('receiver_id', type=int)
+    property_id = request.form.get('property_id', type=int)
+    request_id = request.form.get('request_id', type=int)
+    duration = request.form.get('voice_duration', 0, type=int)
+
+    if property_id and request_id:
+        return jsonify({'error': "A message can quote a property OR a request, not both"}), HTTP_400_BAD_REQUEST
+
+    receiver = User.query.filter_by(id=receiver_id).first() if receiver_id else None
+
+    if property_id:
+        p = Property.query.filter_by(id=property_id).first()
+        if not p:
+            return jsonify({'error': "Property not found"}), HTTP_404_NOT_FOUND
+        if receiver is None:
+            receiver = User.query.filter_by(id=p.user_id).first()
+
+    if request_id:
+        r = Request.query.filter_by(id=request_id).first()
+        if not r:
+            return jsonify({'error': "Request not found"}), HTTP_404_NOT_FOUND
+        if receiver is None:
+            receiver = User.query.filter_by(id=r.user_id).first()
+
+    if not receiver:
+        return jsonify({'error': "Receiver not found"}), HTTP_404_NOT_FOUND
+
+    if receiver.id == me:
+        return jsonify({'error': "You cannot message yourself"}), HTTP_400_BAD_REQUEST
+
+    try:
+        from src.constants.storage import upload_file
+        voice_url = upload_file(file, 'messages/{}/voice'.format(me))
+    except Exception as e:
+        return jsonify({'error': "Failed to upload voice note: {}".format(e)}), HTTP_400_BAD_REQUEST
+
+    msg = Message(
+        sender_id=me,
+        receiver_id=receiver.id,
+        body='',
+        voice_url=voice_url,
+        voice_duration=duration,
+        property_id=property_id,
+        request_id=request_id,
+        read=0,
+        delivered=0,
         created_at=datetime.now(),
         updated_at=datetime.now(),
     )
