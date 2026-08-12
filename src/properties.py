@@ -823,6 +823,9 @@ def browse_properties():
     min_price = request.args.get('min_price', type=float)
     max_price = request.args.get('max_price', type=float)
     sort = request.args.get('sort')
+    bedrooms = request.args.get('bedrooms', type=int)
+    bathrooms = request.args.get('bathrooms', type=int)
+    available = request.args.get('available', type=int)
 
     query = Property.query
 
@@ -842,6 +845,15 @@ def browse_properties():
         query = query.filter(Property.price >= min_price)
     if max_price is not None:
         query = query.filter(Property.price <= max_price)
+
+    if bedrooms is not None:
+        query = query.filter(Property.bedrooms >= bedrooms)
+
+    if bathrooms is not None:
+        query = query.filter(Property.bathrooms >= bathrooms)
+
+    if available is not None:
+        query = query.filter(Property.available == available)
 
     if sort == 'views':
         query = query.order_by(Property.views.desc(), Property.created_at.desc())
