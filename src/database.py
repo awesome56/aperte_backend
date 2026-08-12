@@ -62,6 +62,7 @@ class User(db.Model):
     profile_picture = db.Column(db.String(255), default="default_profile.png")
     email_verified = db.Column(db.Integer, default=0)
     phone_number_verified = db.Column(db.Integer, nullable=True)
+    last_seen = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now())
     updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
 

@@ -7,11 +7,24 @@ from src.constants.http_status_codes import HTTP_204_NO_CONTENT
 from flask import Blueprint, request, jsonify
 from src.database import db, User, Message, Property, Request, PropertyImage
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import or_, and_, func
 from flasgger import swag_from
 
 messages = Blueprint("messages", __name__, url_prefix="/api/v1/messages")
+
+# A user is considered online if their last heartbeat is within this window.
+ONLINE_WINDOW = timedelta(minutes=2)
+
+
+def presence(user):
+    """Online status helper: online + last_seen (for 'last seen X ago')."""
+    if user is None or user.last_seen is None:
+        return {'online': False, 'last_seen': None}
+    return {
+        'online': datetime.now() - user.last_seen <= ONLINE_WINDOW,
+        'last_seen': user.last_seen,
+    }
 
 
 def message_context(m):
@@ -185,6 +198,7 @@ def conversations():
                 'username': u.username,
                 'full_name': u.full_name,
                 'profile_picture': u.profile_picture,
+                **presence(u),
             },
             'last_message': serialize_message(last),
             'unread_count': unread.get(other_id, 0),
@@ -246,6 +260,7 @@ def conversation(user_id):
             'username': other.username,
             'full_name': other.full_name,
             'profile_picture': other.profile_picture,
+            **presence(other),
         },
         'meta': meta,
     }), HTTP_200_OK

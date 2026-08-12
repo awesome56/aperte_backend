@@ -353,6 +353,29 @@ def my_permissions():
     perms = sorted(get_user_permissions())
     return jsonify({'permissions': perms}), HTTP_200_OK
 
+
+@auth.post("/heartbeat")
+@jwt_required()
+def heartbeat():
+    """Presence heartbeat + unread message count in one call.
+
+    Updates the user's last_seen so other users see them as online, and
+    returns the unread message count so the client can refresh its badge
+    without a second request.
+    """
+    user_id = get_jwt_identity()
+    user = User.query.filter_by(id=user_id).first()
+    if not user:
+        return jsonify({'error': "User not found"}), HTTP_404_NOT_FOUND
+
+    user.last_seen = datetime.now()
+    db.session.commit()
+
+    from src.database import Message
+    unread = Message.query.filter(Message.receiver_id == user_id, Message.read == 0).count()
+
+    return jsonify({'unread_count': unread, 'last_seen': user.last_seen}), HTTP_200_OK
+
 @auth.get("/token/refresh")
 @jwt_required(refresh=True)
 @swag_from('./docs/auth/refreshtoken.yml')
