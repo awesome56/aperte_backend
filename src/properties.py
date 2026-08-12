@@ -15,7 +15,8 @@ from src.constants.property_meta import is_valid_category, is_valid_purpose
 from src.constants.storage import upload_file, delete_file
 import validators
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
+from datetime import datetime, timedelta
+from werkzeug.security import generate_password_hash, check_password_hash
 import json
 from sqlalchemy import func
 from flasgger import swag_from
@@ -504,40 +505,156 @@ def claim_property(id):
         return jsonify({'error': "You already own this property"}), HTTP_400_BAD_REQUEST
 
     # one pending claim at a time keeps things clean
-    existing_pending = PropertyClaim.query.filter_by(
-        property_id=id, status='pending'
+    existing_pending = PropertyClaim.query.filter(
+        PropertyClaim.property_id == id,
+        PropertyClaim.status.in_(('pending_verification', 'pending')),
     ).first()
     if existing_pending:
-        return jsonify({'error': "A claim for this property is already pending review"}), HTTP_400_BAD_REQUEST
+        return jsonify({'error': "A claim for this property is already in progress"}), HTTP_400_BAD_REQUEST
 
     mine = PropertyClaim.query.filter_by(property_id=id, user_id=current_user).first()
     if mine:
         if mine.status == 'approved':
             return jsonify({'error': "You already own this property"}), HTTP_400_BAD_REQUEST
         if mine.status == 'rejected':
-            # allow a rejected user to try again
-            mine.status = 'pending'
+            # allow a rejected user to try again — restarts at verification
+            mine.status = 'pending_verification'
             mine.updated_at = datetime.now()
             db.session.commit()
-            return jsonify({
-                'message': "Claim submitted for review",
-                'claim': {'id': mine.id, 'status': mine.status},
-            }), HTTP_201_CREATED
+            claim = mine
+        else:
+            return jsonify({'error': "A claim for this property is already in progress"}), HTTP_400_BAD_REQUEST
+    else:
+        claim = PropertyClaim(
+            property_id=id,
+            user_id=current_user,
+            status='pending_verification',
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        db.session.add(claim)
+        db.session.commit()
 
-    claim = PropertyClaim(
-        property_id=id,
-        user_id=current_user,
-        status='pending',
+    # Google-style verification: email a 6-digit code the claimant must enter
+    target_email = property.contact_email or User.query.filter_by(id=current_user).first().email
+    _send_claim_code(claim, property, target_email)
+
+    return jsonify({
+        'message': "Claim started — a verification code was sent to {}".format(target_email),
+        'claim': {'id': claim.id, 'status': claim.status},
+        'verification_email': target_email,
+    }), HTTP_201_CREATED
+
+
+def _send_claim_code(claim, property, email):
+    """Generate + email a 6-digit verification code for a property claim."""
+    from src.constants.functions import generate_random_string
+    from src.database import Verification
+    from flask_mail import Message
+    from src.auth import mail
+
+    code = generate_random_string(6)
+    purpose = "claim_property"
+    expiration = 10
+
+    code_hash = generate_password_hash(code)
+
+    old = Verification.query.filter_by(user_id=claim.user_id, purpose=purpose, property_id=property.id)
+    for v in old:
+        db.session.delete(v)
+    db.session.flush()
+
+    verification = Verification(
+        user_id=claim.user_id,
+        property_id=property.id,
+        code=code_hash,
+        purpose=purpose,
+        expiration=expiration,
         created_at=datetime.now(),
         updated_at=datetime.now(),
     )
-    db.session.add(claim)
+    db.session.add(verification)
+    db.session.commit()
+
+    message = (
+        "You requested to claim the property \"{}\".\n\n"
+        "Your verification code is: {}\n\n"
+        "This code expires in {} minutes."
+    ).format(property.title, code, expiration)
+
+    msg = Message(subject='Property Claim Verification', recipients=[email])
+    msg.body = message
+
+    try:
+        mail.send(msg)
+    except Exception as e:
+        print('Failed to send claim verification email to {}: {}'.format(email, e))
+
+
+@properties.post("/<int:id>/claim/verify")
+@jwt_required()
+def verify_claim(id):
+    current_user = get_jwt_identity()
+
+    property = Property.query.filter_by(id=id).first()
+    if not property:
+        return jsonify({'error': "Property not found"}), HTTP_404_NOT_FOUND
+
+    claim = PropertyClaim.query.filter_by(
+        property_id=id, user_id=current_user, status='pending_verification'
+    ).first()
+    if not claim:
+        return jsonify({'error': "No claim is waiting for verification"}), HTTP_400_BAD_REQUEST
+
+    data = request.get_json(silent=True) or {}
+    code = data.get('code')
+
+    from src.database import Verification
+    verification = Verification.query.filter_by(
+        user_id=current_user, purpose='claim_property', property_id=id
+    ).first()
+
+    if not verification:
+        return jsonify({'error': "No verification code found. Request a new one."}), HTTP_400_BAD_REQUEST
+
+    if not check_password_hash(verification.code, code):
+        return jsonify({'error': "Invalid verification code"}), HTTP_400_BAD_REQUEST
+
+    if datetime.now() - verification.created_at >= timedelta(minutes=verification.expiration):
+        db.session.delete(verification)
+        db.session.commit()
+        return jsonify({'error': "Verification code expired. Request a new one."}), HTTP_400_BAD_REQUEST
+
+    claim.status = 'pending'
+    claim.updated_at = datetime.now()
+    db.session.delete(verification)
     db.session.commit()
 
     return jsonify({
-        'message': "Claim submitted for review",
+        'message': "Verification successful — claim submitted for admin review",
         'claim': {'id': claim.id, 'status': claim.status},
-    }), HTTP_201_CREATED
+    }), HTTP_200_OK
+
+
+@properties.get("/<int:id>/claim/resend")
+@jwt_required()
+def resend_claim_code(id):
+    current_user = get_jwt_identity()
+
+    property = Property.query.filter_by(id=id).first()
+    if not property:
+        return jsonify({'error': "Property not found"}), HTTP_404_NOT_FOUND
+
+    claim = PropertyClaim.query.filter_by(
+        property_id=id, user_id=current_user, status='pending_verification'
+    ).first()
+    if not claim:
+        return jsonify({'error': "No claim is waiting for verification"}), HTTP_400_BAD_REQUEST
+
+    target_email = property.contact_email or User.query.filter_by(id=current_user).first().email
+    _send_claim_code(claim, property, target_email)
+
+    return jsonify({'message': "A new verification code was sent to {}".format(target_email)}), HTTP_200_OK
 
 
 @properties.route('/user/<int:id>/', methods=['GET'])

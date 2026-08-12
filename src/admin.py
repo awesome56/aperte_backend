@@ -355,7 +355,10 @@ def list_claims():
     status = request.args.get('status', 'pending')
 
     query = PropertyClaim.query
-    if status:
+    if status == 'pending':
+        # the Pending tab shows both verification-in-progress and submitted claims
+        query = query.filter(PropertyClaim.status.in_(('pending_verification', 'pending')))
+    elif status:
         query = query.filter(PropertyClaim.status == status)
 
     page = request.args.get('page', 1, type=int)
@@ -412,6 +415,8 @@ def decide_claim(claim_id):
         return jsonify({'error': "Claim not found"}), HTTP_404_NOT_FOUND
 
     if claim.status != 'pending':
+        if claim.status == 'pending_verification':
+            return jsonify({'error': "Claimant has not completed verification yet"}), HTTP_400_BAD_REQUEST
         return jsonify({'error': "Claim has already been decided"}), HTTP_400_BAD_REQUEST
 
     data = request.get_json(silent=True) or {}
