@@ -114,6 +114,8 @@ def serialize_property(property):
         'contact_phone': property.contact_phone,
         'contact_email': property.contact_email,
         'contact_website': property.contact_website,
+        'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
+        'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
     }
 
 
@@ -144,6 +146,8 @@ def create_property():
     contact_phone = request.get_json().get('contact_phone')
     contact_email = request.get_json().get('contact_email')
     contact_website = request.get_json().get('contact_website')
+    contact_phones = request.get_json().get('contact_phones') or []
+    contact_emails = request.get_json().get('contact_emails') or []
     amenities = request.get_json().get('amenities')
     negotiable = request.get_json().get('negotiable', 0)
 
@@ -204,7 +208,7 @@ def create_property():
 
     attributes_str = json.dumps(attributes) if attributes else None
     
-    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, currency=currency, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, contact_phone=contact_phone, contact_email=contact_email, contact_website=contact_website, created_at=datetime.now(), updated_at=datetime.now())
+    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, currency=currency, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, contact_phone=contact_phone, contact_email=contact_email, contact_website=contact_website, contact_phones=json.dumps(contact_phones) if contact_phones else None, contact_emails=json.dumps(contact_emails) if contact_emails else None, created_at=datetime.now(), updated_at=datetime.now())
 
     db.session.add(property)
     db.session.commit()
@@ -950,6 +954,8 @@ def get_properties(id):
             'contact_phone': property.contact_phone,
             'contact_email': property.contact_email,
             'contact_website': property.contact_website,
+            'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
+            'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
         })
 
     meta={
@@ -1063,6 +1069,8 @@ def browse_properties():
             'contact_phone': property.contact_phone,
             'contact_email': property.contact_email,
             'contact_website': property.contact_website,
+            'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
+            'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
         })
 
     meta={
@@ -1115,6 +1123,8 @@ def edit_property(id):
     contact_phone = request.get_json().get('contact_phone', property.contact_phone)
     contact_email = request.get_json().get('contact_email', property.contact_email)
     contact_website = request.get_json().get('contact_website', property.contact_website)
+    contact_phones = request.get_json().get('contact_phones') or []
+    contact_emails = request.get_json().get('contact_emails') or []
     amenities = request.get_json().get('amenities')
     negotiable = request.get_json().get('negotiable', 0)
     available = request.get_json().get('available', property.available)
@@ -1208,6 +1218,8 @@ def edit_property(id):
     property.contact_phone=contact_phone
     property.contact_email=contact_email
     property.contact_website=contact_website
+    property.contact_phones=json.dumps(contact_phones) if contact_phones else None
+    property.contact_emails=json.dumps(contact_emails) if contact_emails else None
     property.updated_at=datetime.now()
 
     db.session.commit()

@@ -130,6 +130,8 @@ class Property(db.Model):
     contact_phone = db.Column(db.String(30), nullable=True)
     contact_email = db.Column(db.String(255), nullable=True)
     contact_website = db.Column(db.String(255), nullable=True)
+    contact_phones = db.Column(db.Text, nullable=True)  # JSON array of phone numbers
+    contact_emails = db.Column(db.Text, nullable=True)  # JSON array of emails
     created_at = db.Column(db.DateTime, default=datetime.now())
     updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
     
