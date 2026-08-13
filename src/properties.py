@@ -501,6 +501,91 @@ def my_analytics():
     }), HTTP_200_OK
 
 
+@properties.get("/<int:id>/stats")
+@jwt_required()
+def property_stats(id):
+    """Owner-only management stats for a single property."""
+    me = get_jwt_identity()
+
+    from src.database import Booking, Room, Slot, Review
+
+    property_ = Property.query.filter_by(id=id).first()
+    if not property_:
+        return jsonify({'error': "Property not found"}), HTTP_404_NOT_FOUND
+
+    if property_.user_id != me:
+        admin_check = User.query.filter_by(id=me).first()
+        if not admin_check or admin_check.role != 'admin':
+            return jsonify({'error': "Only the property owner can view stats"}), HTTP_404_NOT_FOUND
+
+    bookings = Booking.query.filter_by(property_id=id).all()
+    b_counts = {'total': len(bookings), 'pending': 0, 'confirmed': 0, 'completed': 0, 'cancelled': 0}
+    revenue = 0
+    for b in bookings:
+        if b.status in b_counts:
+            b_counts[b.status] += 1
+        if b.status in ('confirmed', 'completed'):
+            revenue += b.total or 0
+
+    dp = PropertyImage.query.filter_by(property_id=id, dp=1).first()
+
+    rooms = []
+    if property_.category == 'hotel':
+        for r in Room.query.filter_by(property_id=id).all():
+            room_bookings = [b for b in bookings if b.room_id == r.id]
+            room_revenue = sum((b.total or 0) for b in room_bookings if b.status in ('confirmed', 'completed'))
+            rooms.append({
+                'id': r.id,
+                'room_type': r.room_type,
+                'beds': r.beds,
+                'price': r.price,
+                'available': r.available,
+                'bookings': len(room_bookings),
+                'active_bookings': len([b for b in room_bookings if b.status in ('pending', 'confirmed')]),
+                'revenue': room_revenue,
+            })
+
+    slot_count = Slot.query.filter_by(property_id=id).count() if property_.category in ('hall', 'event_center') else 0
+
+    reviews = []
+    for rv in Review.query.filter_by(property_id=id).order_by(Review.created_at.desc()).limit(50).all():
+        u = User.query.filter_by(id=rv.user_id).first()
+        reviews.append({
+            'id': rv.id,
+            'user_id': rv.user_id,
+            'username': u.username if u else None,
+            'full_name': u.full_name if u else None,
+            'rating': rv.rating,
+            'title': rv.title,
+            'content': rv.content,
+            'created_at': rv.created_at,
+        })
+
+    avg_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == id).scalar()
+
+    return jsonify({
+        'property': {
+            'id': property_.id,
+            'title': property_.title,
+            'category': property_.category,
+            'approved': property_.approved,
+            'available': property_.available,
+            'disabled': property_.disabled,
+            'views': property_.views or 0,
+            'favorites': Favorite.query.filter_by(property_id=id).count(),
+            'dp': dp.image_url if dp else "",
+            'created_at': property_.created_at,
+        },
+        'bookings': b_counts,
+        'revenue': revenue,
+        'rooms': rooms,
+        'slot_count': slot_count,
+        'reviews': reviews,
+        'average_rating': avg_rating,
+        'review_count': len(reviews),
+    }), HTTP_200_OK
+
+
 @properties.get("/<int:id>")
 @jwt_required(optional=True)
 @swag_from('./docs/properties/getproperty.yml')
