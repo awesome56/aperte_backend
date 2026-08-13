@@ -151,7 +151,7 @@ def create_property():
     amenities = request.get_json().get('amenities')
     negotiable = request.get_json().get('negotiable', 0)
 
-    if not title or not description or not property_type or not price or not location or not city or not state or not country:
+    if not title or not description or not property_type or price is None or not location or not city or not state or not country:
         return jsonify({'error': "Property title, description, property type, price, location, city, state, country must not be empty"}), HTTP_400_BAD_REQUEST 
     
     if not is_valid_category(category):
@@ -1130,7 +1130,7 @@ def edit_property(id):
     available = request.get_json().get('available', property.available)
     disabled = request.get_json().get('disabled', property.disabled)
 
-    if not title or not description or not property_type or not price or not location or not city or not state or not country:
+    if not title or not description or not property_type or price is None or not location or not city or not state or not country:
         return jsonify({'error': "Title, Description, Property type, Price, Location, City, State, Country must not be empty"}), HTTP_400_BAD_REQUEST 
     
     if not is_valid_category(category):
