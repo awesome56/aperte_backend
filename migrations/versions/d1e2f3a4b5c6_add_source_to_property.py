@@ -14,8 +14,13 @@ branch_labels = None
 depends_on = None
 
 
+def has_column(conn, name):
+    cols = [c['name'] for c in sa.inspect(conn).get_columns('property')]
+    return name in cols
+
+
 def upgrade():
-    if not sa.inspect(op.get_bind()).has_column('property', 'source'):
+    if not has_column(op.get_bind(), 'source'):
         op.add_column('property', sa.Column('source', sa.String(length=500), nullable=True))
     conn = op.get_bind()
     conn.execute(sa.text(
@@ -29,5 +34,5 @@ def upgrade():
 
 
 def downgrade():
-    if sa.inspect(op.get_bind()).has_column('property', 'source'):
+    if has_column(op.get_bind(), 'source'):
         op.drop_column('property', 'source')
