@@ -617,6 +617,16 @@ def reject_property(id):
     return jsonify({'id': property.id, 'approved': property.approved}), HTTP_200_OK
 
 
+@admin.put("/properties/approve-all")
+@permission_required('properties.approve')
+def approve_all_properties():
+    count = Property.query.filter_by(approved=0).update(
+        {Property.approved: 1, Property.updated_at: datetime.now()}
+    )
+    db.session.commit()
+    return jsonify({'approved': count}), HTTP_200_OK
+
+
 @admin.delete("/properties/<int:id>")
 @permission_required('properties.delete')
 @swag_from('./docs/admin/deleteproperty.yml')

@@ -992,7 +992,7 @@ def browse_properties():
     bathrooms = request.args.get('bathrooms', type=int)
     available = request.args.get('available', type=int)
 
-    query = Property.query.filter(Property.disabled == 0)
+    query = Property.query.filter(Property.disabled == 0, Property.approved == 1)
 
     if category:
         query = query.filter_by(category=category)
