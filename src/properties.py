@@ -1128,6 +1128,7 @@ def edit_property(id):
     amenities = request.get_json().get('amenities')
     negotiable = request.get_json().get('negotiable', 0)
     available = request.get_json().get('available', property.available)
+    disabled = request.get_json().get('disabled', property.disabled)
 
     if not title or not description or not property_type or not price or not location or not city or not state or not country:
         return jsonify({'error': "Title, Description, Property type, Price, Location, City, State, Country must not be empty"}), HTTP_400_BAD_REQUEST 
