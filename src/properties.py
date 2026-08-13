@@ -116,6 +116,7 @@ def serialize_property(property):
         'contact_website': property.contact_website,
         'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
         'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
+        'source': property.source,
     }
 
 
@@ -206,9 +207,12 @@ def create_property():
     else:
         return jsonify({'error': "Amenities must be in json format"}), HTTP_400_BAD_REQUEST
 
+    if attributes and isinstance(attributes, dict):
+        attributes.pop('source', None)
     attributes_str = json.dumps(attributes) if attributes else None
+    source = request.get_json().get('source')
     
-    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, currency=currency, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, contact_phone=contact_phone, contact_email=contact_email, contact_website=contact_website, contact_phones=json.dumps(contact_phones) if contact_phones else None, contact_emails=json.dumps(contact_emails) if contact_emails else None, created_at=datetime.now(), updated_at=datetime.now())
+    property = Property(user_id=current_user, title=title, description=description, category=category, property_type=property_type, purpose=purpose, attributes=attributes_str, price=price, currency=currency, area=area, bedrooms=bedrooms, bathrooms=bathrooms, location=location, city=city, state=state, country=country, negotiable=negotiable, latitude=latitude, longitude=longitude, year_built=year_built, amenities=amenities_str, contact_phone=contact_phone, contact_email=contact_email, contact_website=contact_website, contact_phones=json.dumps(contact_phones) if contact_phones else None, contact_emails=json.dumps(contact_emails) if contact_emails else None, source=source, created_at=datetime.now(), updated_at=datetime.now())
 
     db.session.add(property)
     db.session.commit()
@@ -1129,6 +1133,7 @@ def edit_property(id):
     negotiable = request.get_json().get('negotiable', 0)
     available = request.get_json().get('available', property.available)
     disabled = request.get_json().get('disabled', property.disabled)
+    source = request.get_json().get('source', property.source)
 
     if not title or not description or not property_type or price is None or not location or not city or not state or not country:
         return jsonify({'error': "Title, Description, Property type, Price, Location, City, State, Country must not be empty"}), HTTP_400_BAD_REQUEST 
@@ -1191,6 +1196,8 @@ def edit_property(id):
     else:
         return jsonify({'error': "Amenities must be in json format"}), HTTP_400_BAD_REQUEST
 
+    if attributes and isinstance(attributes, dict):
+        attributes.pop('source', None)
     attributes_str = json.dumps(attributes) if attributes else None
     
     property.title=title
@@ -1221,6 +1228,7 @@ def edit_property(id):
     property.contact_website=contact_website
     property.contact_phones=json.dumps(contact_phones) if contact_phones else None
     property.contact_emails=json.dumps(contact_emails) if contact_emails else None
+    property.source=source
     property.updated_at=datetime.now()
 
     db.session.commit()

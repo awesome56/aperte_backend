@@ -132,6 +132,7 @@ class Property(db.Model):
     contact_website = db.Column(db.String(255), nullable=True)
     contact_phones = db.Column(db.Text, nullable=True)  # JSON array of phone numbers
     contact_emails = db.Column(db.Text, nullable=True)  # JSON array of emails
+    source = db.Column(db.String(500), nullable=True)  # origin URL for scraped listings
     created_at = db.Column(db.DateTime, default=datetime.now())
     updated_at = db.Column(db.DateTime, default=datetime.now(), onupdate=datetime.now())
     
