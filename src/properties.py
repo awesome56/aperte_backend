@@ -890,6 +890,7 @@ def get_properties(id):
     category = request.args.get('category')
     purpose = request.args.get('purpose')
     property_type = request.args.get('property_type')
+    search = request.args.get('search')
 
     if not User.query.filter_by(id=id).first():
         return jsonify({'error': "User not found"}), HTTP_404_NOT_FOUND
@@ -901,8 +902,10 @@ def get_properties(id):
         query = query.filter_by(purpose=purpose)
     if property_type:
         query = query.filter_by(property_type=property_type)
+    if search:
+        query = query.filter(Property.title.ilike('%{}%'.format(search)))
 
-    properties = query.paginate(page=page, per_page=per_page)
+    properties = query.order_by(Property.created_at.desc()).paginate(page=page, per_page=per_page)
 
     data = []
 
