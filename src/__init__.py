@@ -19,6 +19,7 @@ from src.tracking import tracking
 from src.admin_analytics import analytics_bp
 from src.messages import messages
 from src.calls import calls
+from src.availability import availability
 from src.database import db
 from flask_jwt_extended import JWTManager
 from src.constants.http_status_codes import HTTP_400_BAD_REQUEST
@@ -111,6 +112,7 @@ def create_app(test_config=None):
     app.register_blueprint(analytics_bp)
     app.register_blueprint(messages)
     app.register_blueprint(calls)
+    app.register_blueprint(availability)
 
     Swagger(app, config=swagger_config, template=template)
 

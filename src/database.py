@@ -223,6 +223,21 @@ class PropertyClaim(db.Model):
         return f'PropertyClaim ID: {self.id} - Property {self.property_id} - {self.status}'
 
 
+class PropertyUnavailability(db.Model):
+    """Owner-blocked date ranges for a bookable property (hotel/shortlet)."""
+
+    __tablename__ = 'property_unavailability'
+
+    id = db.Column(db.Integer, primary_key=True)
+    property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now())
+
+    def __repr__(self):
+        return f'Unavailability ID: {self.id} - Property {self.property_id}: {self.start_date}..{self.end_date}'
+
+
 class PropertyImage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     property_id = db.Column(db.Integer, db.ForeignKey('property.id', ondelete='CASCADE'), nullable=False)

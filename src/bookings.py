@@ -52,6 +52,14 @@ def serialize_booking(booking):
     }
 
 
+def has_blocked_period(property_id, check_in, check_out):
+    return PropertyUnavailability.query.filter(
+        PropertyUnavailability.property_id == property_id,
+        PropertyUnavailability.end_date >= check_in,
+        PropertyUnavailability.start_date <= check_out,
+    ).first() is not None
+
+
 def has_overlap(property_id, room_id, check_in, check_out):
     query = Booking.query.filter(
         Booking.property_id == property_id,
@@ -132,6 +140,9 @@ def create_booking(property_id):
         if nights < 1:
             return jsonify({'error': "Check out date must be after check in date"}), HTTP_400_BAD_REQUEST
 
+        if has_blocked_period(property_id, check_in_date, check_out_date):
+            return jsonify({'error': "Property is blocked for the selected dates"}), HTTP_409_CONFLICT
+
         if has_overlap(property_id, room_id, check_in_date, check_out_date):
             return jsonify({'error': "Room is already booked for the selected dates"}), HTTP_409_CONFLICT
 
@@ -168,6 +179,9 @@ def create_booking(property_id):
 
         if nights < 1:
             return jsonify({'error': "Check out date must be after check in date"}), HTTP_400_BAD_REQUEST
+
+        if has_blocked_period(property_id, check_in_date, check_out_date):
+            return jsonify({'error': "Property is blocked for the selected dates"}), HTTP_409_CONFLICT
 
         if has_overlap(property_id, None, check_in_date, check_out_date):
             return jsonify({'error': "Property is already booked for the selected dates"}), HTTP_409_CONFLICT
