@@ -1129,7 +1129,10 @@ def ai_search_properties():
             keywords = parsed_filters.get('keywords') or []
 
             if category:
-                query = query.filter(Property.category == category)
+                if category in ('hall', 'event_center'):
+                    query = query.filter(Property.category.in_(['hall', 'event_center']))
+                else:
+                    query = query.filter(Property.category == category)
             if purpose:
                 query = query.filter(Property.purpose == purpose)
             if property_type:
