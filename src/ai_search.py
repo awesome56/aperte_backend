@@ -35,24 +35,28 @@ def ai_interpret(query):
         'max_tokens': 1024,
         'response_format': {'type': 'json_object'},
     }
-    req = urllib.request.Request(
-        DEEPSEEK_URL,
-        data=json.dumps(payload).encode(),
-        headers={
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer {}'.format(DEEPSEEK_API_KEY),
-        },
-        method='POST',
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            body = json.loads(resp.read().decode())
-        msg = body['choices'][0]['message']
-        content = (msg.get('content') or msg.get('reasoning_content') or '').strip()
-        content = re.sub(r'^```(?:json)?\s*|\s*```$', '', content)
-        parsed = json.loads(content)
-        if not isinstance(parsed, dict):
-            return None
-        return parsed
-    except Exception:
-        return None
+    last_err = None
+    for attempt in range(2):
+        req = urllib.request.Request(
+            DEEPSEEK_URL,
+            data=json.dumps(payload).encode(),
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer {}'.format(DEEPSEEK_API_KEY),
+            },
+            method='POST',
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                body = json.loads(resp.read().decode())
+            msg = body['choices'][0]['message']
+            content = (msg.get('content') or msg.get('reasoning_content') or '').strip()
+            content = re.sub(r'^```(?:json)?\s*|\s*```$', '', content)
+            parsed = json.loads(content)
+            if not isinstance(parsed, dict):
+                raise ValueError('non-dict response')
+            return parsed
+        except Exception as e:
+            last_err = e
+    print('ai_interpret failed for {!r}: {}'.format(query, last_err))
+    return None
