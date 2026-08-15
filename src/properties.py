@@ -18,7 +18,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 import json
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from flasgger import swag_from
 
 
@@ -1097,6 +1097,148 @@ def browse_properties():
     }
 
     return jsonify({'data': data, 'meta':meta}), HTTP_200_OK
+
+
+@properties.post('/ai-search')
+def ai_search_properties():
+    """Natural-language search. Interprets the query (DeepSeek) into filters and
+    returns matching listings; falls back to plain keyword matching."""
+    data = request.get_json(silent=True) or {}
+    q = (data.get('q') or '').strip()
+    if not q:
+        return jsonify({'error': "Search query is required"}), HTTP_400_BAD_REQUEST
+
+    from src.ai_search import ai_interpret
+    parsed = ai_interpret(q)
+
+    page = data.get('page', 1)
+    per_page = data.get('per_page', 12)
+
+    def run_query(parsed_filters, keyword_mode='and'):
+        query = Property.query.filter(Property.disabled == 0, Property.approved == 1)
+        if parsed_filters:
+            category = parsed_filters.get('category')
+            purpose = parsed_filters.get('purpose')
+            property_type = parsed_filters.get('property_type')
+            bedrooms = parsed_filters.get('bedrooms')
+            bathrooms = parsed_filters.get('bathrooms')
+            min_price = parsed_filters.get('min_price')
+            max_price = parsed_filters.get('max_price')
+            city = parsed_filters.get('city')
+            location = parsed_filters.get('location')
+            keywords = parsed_filters.get('keywords') or []
+
+            if category:
+                query = query.filter(Property.category == category)
+            if purpose:
+                query = query.filter(Property.purpose == purpose)
+            if property_type:
+                query = query.filter(Property.property_type.ilike('%{}%'.format(property_type)))
+            if bedrooms:
+                query = query.filter(Property.bedrooms >= bedrooms)
+            if bathrooms:
+                query = query.filter(Property.bathrooms >= bathrooms)
+            if min_price is not None:
+                query = query.filter(Property.price >= min_price)
+            if max_price is not None:
+                query = query.filter(Property.price <= max_price)
+            if city:
+                query = query.filter(Property.city.ilike('%{}%'.format(city)))
+            if location:
+                query = query.filter(
+                    Property.location.ilike('%{}%'.format(location)) |
+                    Property.title.ilike('%{}%'.format(location))
+                )
+            if keywords:
+                if keyword_mode == 'and':
+                    for kw in keywords:
+                        s = '%{}%'.format(kw)
+                        query = query.filter(Property.title.ilike(s) | Property.description.ilike(s) | Property.location.ilike(s))
+                else:
+                    s = '%{}%'.format(keywords[0])
+                    ors = [Property.title.ilike(s) | Property.description.ilike(s) | Property.location.ilike(s)]
+                    for kw in keywords[1:]:
+                        s = '%{}%'.format(kw)
+                        ors.append(Property.title.ilike(s) | Property.description.ilike(s) | Property.location.ilike(s))
+                    query = query.filter(or_(*ors))
+        else:
+            s = '%{}%'.format(q)
+            query = query.filter(Property.title.ilike(s) | Property.description.ilike(s) | Property.location.ilike(s))
+        return query.order_by(Property.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+    if parsed:
+        properties = run_query(parsed)
+        interpretation = {
+            'used_ai': True,
+            'query': q,
+            'suggested_query': parsed.get('suggested_query') or q,
+            'category': parsed.get('category'),
+            'purpose': parsed.get('purpose'),
+            'bedrooms': parsed.get('bedrooms'),
+            'bathrooms': parsed.get('bathrooms'),
+            'min_price': parsed.get('min_price'),
+            'max_price': parsed.get('max_price'),
+            'city': parsed.get('city'),
+            'location': parsed.get('location'),
+        }
+        # broaden: drop keyword AND-matching, retry with OR when nothing matched
+        if properties.total == 0 and parsed.get('keywords'):
+            properties = run_query(parsed, keyword_mode='or')
+    else:
+        properties = run_query(None)
+        interpretation = {'used_ai': False, 'query': q, 'suggested_query': q}
+
+    data = []
+    for property in properties.items:
+        dp = PropertyImage.query.filter_by(property_id=property.id, dp=1).first()
+        dp_url = dp.image_url if dp else ""
+        average_rating = db.session.query(func.avg(Review.rating)).filter(Review.property_id == property.id).scalar()
+        user = User.query.filter_by(id=property.user_id).first()
+        data.append({
+            'id': property.id,
+            'user_id': property.user_id,
+            'title': property.title,
+            'category': property.category,
+            'property_type': property.property_type,
+            'purpose': property.purpose,
+            'price': property.price,
+            'currency': property.currency,
+            'location': property.location,
+            'city': property.city,
+            'state': property.state,
+            'country': property.country,
+            'dp': dp_url,
+            'image_count': PropertyImage.query.filter_by(property_id=property.id).count(),
+            'video_count': PropertyVideo.query.filter_by(property_id=property.id).count(),
+            'approved': property.approved,
+            'available': property.available,
+            'views': property.views,
+            'favorites_count': Favorite.query.filter_by(property_id=property.id).count(),
+            'created_at': property.created_at,
+            'updated_at': property.updated_at,
+            'average_rating': average_rating,
+            'username': user.username,
+            'owner_full_name': user.full_name,
+            'owner_email': user.email,
+            'owner_phone_number': user.phone_number,
+            'contact_phone': property.contact_phone,
+            'contact_email': property.contact_email,
+            'contact_website': property.contact_website,
+            'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
+            'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
+        })
+
+    meta = {
+        "page": properties.page,
+        "pages": properties.pages,
+        "total_count": properties.total,
+        "prev_page": properties.prev_num,
+        "next_page": properties.next_num,
+        "has_next": properties.has_next,
+        "has_prev": properties.has_prev,
+    }
+
+    return jsonify({'data': data, 'meta': meta, 'interpretation': interpretation}), HTTP_200_OK
 
 
 @properties.put('/<int:id>')
