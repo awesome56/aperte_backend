@@ -1041,6 +1041,12 @@ def browse_properties():
         query = query.order_by(Property.views.desc(), Property.created_at.desc())
     elif sort == 'popular':
         query = query.order_by(Property.views.desc(), Property.created_at.desc())
+    elif sort == 'favorites':
+        fav_counts = db.session.query(
+            Favorite.property_id, func.count(Favorite.id).label('c')
+        ).group_by(Favorite.property_id).subquery()
+        query = query.outerjoin(fav_counts, fav_counts.c.property_id == Property.id) \
+            .order_by(func.coalesce(fav_counts.c.c, 0).desc(), Property.created_at.desc())
     elif sort == 'price_asc':
         query = query.order_by(Property.price.asc())
     elif sort == 'price_desc':
