@@ -982,6 +982,7 @@ def browse_properties():
     category = request.args.get('category')
     purpose = request.args.get('purpose')
     property_type = request.args.get('property_type')
+    search = request.args.get('search')
     city = request.args.get('city')
     state = request.args.get('state')
     country = request.args.get('country')
@@ -993,6 +994,15 @@ def browse_properties():
     available = request.args.get('available', type=int)
 
     query = Property.query.filter(Property.disabled == 0, Property.approved == 1)
+
+    if search:
+        s = '%{}%'.format(search.strip())
+        query = query.filter(
+            Property.title.ilike(s) |
+            Property.city.ilike(s) |
+            Property.location.ilike(s) |
+            Property.description.ilike(s)
+        )
 
     if category:
         query = query.filter_by(category=category)
