@@ -983,6 +983,7 @@ def browse_properties():
     purpose = request.args.get('purpose')
     property_type = request.args.get('property_type')
     search = request.args.get('search')
+    amenities = request.args.get('amenities')
     city = request.args.get('city')
     state = request.args.get('state')
     country = request.args.get('country')
@@ -1029,6 +1030,12 @@ def browse_properties():
 
     if available is not None:
         query = query.filter(Property.available == available)
+
+    if amenities:
+        for a in amenities.split(','):
+            a = a.strip()
+            if a:
+                query = query.filter(Property.amenities.ilike('%{}%'.format(a)))
 
     if sort == 'views':
         query = query.order_by(Property.views.desc(), Property.created_at.desc())
