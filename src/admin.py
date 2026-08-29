@@ -570,6 +570,7 @@ def get_all_properties():
             'available': p.available,
             'username': user.username if user else None,
             'created_at': p.created_at,
+            'source': p.source,
         })
 
     meta = {

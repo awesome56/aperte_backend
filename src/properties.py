@@ -116,7 +116,6 @@ def serialize_property(property):
         'contact_website': property.contact_website,
         'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
         'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
-        'source': property.source,
     }
 
 
