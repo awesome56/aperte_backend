@@ -1,0 +1,7 @@
+tags:
+  - Messages
+summary: Messages endpoint
+description: Messages endpoint
+responses:
+  200:
+    description: Success
