@@ -993,6 +993,46 @@ def browse_properties():
     bathrooms = request.args.get('bathrooms', type=int)
     available = request.args.get('available', type=int)
 
+    # --- proximity: read user location from query or headers (frontend sends geolocation) ---
+    def _parse_lat_lng():
+        # query params: lat/latitude/user_lat + lng/longitude/user_lng/lon
+        for k in ('lat', 'latitude', 'user_lat', 'userLat', 'user_latitude'):
+            v = request.args.get(k)
+            if v is not None:
+                try:
+                    lat = float(v)
+                    break
+                except: lat = None
+        else:
+            lat = None
+        for k in ('lng', 'lon', 'longitude', 'user_lng', 'userLng', 'user_longitude', 'long'):
+            v = request.args.get(k)
+            if v is not None:
+                try:
+                    lng = float(v)
+                    break
+                except: lng = None
+        else:
+            lng = None
+        # also check headers X-User-Lat / X-User-Lng (if frontend sends via headers)
+        if lat is None:
+            hv = request.headers.get('X-User-Lat') or request.headers.get('X-User-Latitude')
+            if hv:
+                try: lat = float(hv)
+                except: pass
+        if lng is None:
+            hv = request.headers.get('X-User-Lng') or request.headers.get('X-User-Longitude') or request.headers.get('X-User-Lon')
+            if hv:
+                try: lng = float(hv)
+                except: pass
+        if lat is not None and lng is not None:
+            if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+                return None, None
+            return lat, lng
+        return None, None
+
+    user_lat, user_lng = _parse_lat_lng()
+
     query = Property.query.filter(Property.disabled == 0, Property.approved == 1)
 
     if search:
@@ -1036,7 +1076,36 @@ def browse_properties():
             if a:
                 query = query.filter(Property.amenities.ilike('%{}%'.format(a)))
 
-    if sort == 'views':
+    # --- sorting: explicit sort wins; otherwise proximity when no filters & location given ---
+    has_filters = bool(
+        search or category or purpose or property_type or city or state or country
+        or amenities or bedrooms is not None or bathrooms is not None
+        or min_price is not None or max_price is not None or available is not None
+    )
+    has_explicit_sort = sort not in (None, '', 'newest')
+
+    # Haversine distance expression (km) — uses stored lat/lng (city-center approximated)
+    def _distance_expr(lat, lng):
+        # limit acos domain to [-1,1] to avoid NaN from float errors
+        cos_d = (
+            func.cos(func.radians(lat)) * func.cos(func.radians(Property.latitude)) *
+            func.cos(func.radians(Property.longitude) - func.radians(lng)) +
+            func.sin(func.radians(lat)) * func.sin(func.radians(Property.latitude))
+        )
+        cos_d = func.least(func.greatest(cos_d, -1.0), 1.0)
+        return 6371 * func.acos(cos_d)
+
+    wants_proximity = False
+    if sort in ('nearby', 'distance', 'proximity', 'closest'):
+        wants_proximity = True
+    elif not has_filters and not has_explicit_sort and user_lat is not None and user_lng is not None:
+        wants_proximity = True
+
+    if wants_proximity and user_lat is not None and user_lng is not None:
+        distance = _distance_expr(user_lat, user_lng)
+        # push properties without coordinates to the end
+        query = query.order_by(func.coalesce(distance, 999999).asc(), Property.created_at.desc())
+    elif sort == 'views':
         query = query.order_by(Property.views.desc(), Property.created_at.desc())
     elif sort == 'popular':
         query = query.order_by(Property.views.desc(), Property.created_at.desc())
@@ -1064,6 +1133,17 @@ def browse_properties():
 
         user = User.query.filter_by(id=property.user_id).first()
 
+        # distance for response when proximity sorted
+        distance_km = None
+        if wants_proximity and user_lat is not None and user_lng is not None and property.latitude is not None and property.longitude is not None:
+            import math
+            R = 6371.0
+            dlat = math.radians(property.latitude - user_lat)
+            dlon = math.radians(property.longitude - user_lng)
+            a = math.sin(dlat/2)**2 + math.cos(math.radians(user_lat)) * math.cos(math.radians(property.latitude)) * math.sin(dlon/2)**2
+            c = 2 * math.asin(math.sqrt(a))
+            distance_km = round(R * c, 2)
+
         data.append({
             'id': property.id,
             'user_id': property.user_id,
@@ -1077,6 +1157,9 @@ def browse_properties():
             'city': property.city,
             'state': property.state,
             'country': property.country,
+            'latitude': property.latitude,
+            'longitude': property.longitude,
+            'distance_km': distance_km,
             'dp': dp_url,
             'image_count': PropertyImage.query.filter_by(property_id=property.id).count(),
             'video_count': PropertyVideo.query.filter_by(property_id=property.id).count(),
