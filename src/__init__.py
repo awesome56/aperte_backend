@@ -20,6 +20,7 @@ from src.admin_analytics import analytics_bp
 from src.messages import messages
 from src.calls import calls
 from src.availability import availability
+from src.alice.routes import alice as alice_bp, mcp as mcp_bp
 from src.database import db
 from flask_jwt_extended import JWTManager
 from src.constants.http_status_codes import HTTP_400_BAD_REQUEST
@@ -113,6 +114,8 @@ def create_app(test_config=None):
     app.register_blueprint(messages)
     app.register_blueprint(calls)
     app.register_blueprint(availability)
+    app.register_blueprint(alice_bp)
+    app.register_blueprint(mcp_bp)
 
     Swagger(app, config=swagger_config, template=template)
 
@@ -148,6 +151,12 @@ def create_app(test_config=None):
                 if r:
                     u.role_id = r.id
             dbmod.db.session.commit()
+            # Ensure ALICE conversation table exists (idempotent, no migration needed)
+            try:
+                from src.alice.models import AliceConversation
+                AliceConversation.__table__.create(dbmod.db.engine, checkfirst=True)
+            except Exception:
+                pass
         except Exception:
             # Tables may not exist yet during migrations; skip silently
             pass

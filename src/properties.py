@@ -47,6 +47,15 @@ def to_int(value, label):
         raise ValueError("{} must be an whole number".format(label))
 
 
+def _clean_website(url):
+    """Scraped source URLs must never surface as contact_website (see property 181)."""
+    if not url:
+        return url
+    if 'propertypro' in url.lower():
+        return None
+    return url
+
+
 def serialize_property(property):
     property_images = PropertyImage.query.filter_by(property_id=property.id)
     attachments = []
@@ -113,7 +122,7 @@ def serialize_property(property):
         'owner_is_admin': user.role == 'admin',
         'contact_phone': property.contact_phone,
         'contact_email': property.contact_email,
-        'contact_website': property.contact_website,
+        'contact_website': _clean_website(property.contact_website),
         'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
         'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
     }
@@ -145,7 +154,7 @@ def create_property():
     year_built = request.get_json().get('year_built')
     contact_phone = request.get_json().get('contact_phone')
     contact_email = request.get_json().get('contact_email')
-    contact_website = request.get_json().get('contact_website')
+    contact_website = _clean_website(request.get_json().get('contact_website'))
     contact_phones = request.get_json().get('contact_phones') or []
     contact_emails = request.get_json().get('contact_emails') or []
     amenities = request.get_json().get('amenities')
@@ -955,7 +964,7 @@ def get_properties(id):
             'owner_phone_number': user.phone_number,
             'contact_phone': property.contact_phone,
             'contact_email': property.contact_email,
-            'contact_website': property.contact_website,
+            'contact_website': _clean_website(property.contact_website),
             'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
             'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
         })
@@ -1176,7 +1185,7 @@ def browse_properties():
             'owner_phone_number': user.phone_number,
             'contact_phone': property.contact_phone,
             'contact_email': property.contact_email,
-            'contact_website': property.contact_website,
+            'contact_website': _clean_website(property.contact_website),
             'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
             'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
         })
@@ -1321,7 +1330,7 @@ def ai_search_properties():
             'owner_phone_number': user.phone_number,
             'contact_phone': property.contact_phone,
             'contact_email': property.contact_email,
-            'contact_website': property.contact_website,
+            'contact_website': _clean_website(property.contact_website),
             'contact_phones': json.loads(property.contact_phones) if property.contact_phones else [],
             'contact_emails': json.loads(property.contact_emails) if property.contact_emails else [],
         })
@@ -1375,7 +1384,7 @@ def edit_property(id):
     year_built = request.get_json().get('year_built')
     contact_phone = request.get_json().get('contact_phone', property.contact_phone)
     contact_email = request.get_json().get('contact_email', property.contact_email)
-    contact_website = request.get_json().get('contact_website', property.contact_website)
+    contact_website = _clean_website(request.get_json().get('contact_website', property.contact_website))
     contact_phones = request.get_json().get('contact_phones') or []
     contact_emails = request.get_json().get('contact_emails') or []
     amenities = request.get_json().get('amenities')
