@@ -89,6 +89,69 @@ def _headers(provider, session_id=''):
     return headers
 
 
+def sanitize_history(history, limit=30):
+    """Rebuild a provider-safe message window (fixes Zen/DeepSeek 400s).
+
+    - keeps the last ``limit`` messages, allowed roles/keys only
+    - drops leading orphan ``tool`` messages (window sliced mid-exchange)
+    - backfills empty tool_call ids and pairs them positionally
+    - drops ``tool`` messages with no matching id (strict gateways reject these)
+    - drops assistant ``tool_calls`` blocks with no following tool response
+      (e.g. the confirmation-path summary already carries the context)
+    """
+    msgs = []
+    for m in history[-limit:]:
+        r = m.get('role')
+        if r not in ('user', 'assistant', 'tool'):
+            continue
+        keep = ('role', 'content', 'tool_calls') if r == 'assistant' else ('role', 'content', 'tool_call_id')
+        msgs.append({k: m[k] for k in keep if k in m})
+    while msgs and msgs[0].get('role') == 'tool':
+        msgs.pop(0)
+
+    out, pending, i = [], [], 0
+    while i < len(msgs):
+        m = msgs[i]
+        if m.get('role') == 'assistant' and m.get('tool_calls'):
+            fixed = []
+            for tc in m['tool_calls']:
+                tc = dict(tc)
+                fn = dict(tc.get('function') or {})
+                if not tc.get('id'):
+                    tc['id'] = 'call_' + uuid.uuid4().hex[:8]
+                fn['arguments'] = fn.get('arguments') or '{}'
+                tc['function'] = fn
+                fixed.append(tc)
+            m = dict(m)
+            m['tool_calls'] = fixed
+            pending = [tc['id'] for tc in fixed]
+            out.append(m)
+        elif m.get('role') == 'tool':
+            tid = m.get('tool_call_id') or ''
+            if not tid and len(pending) == 1:
+                tid = pending[0]
+            if tid and tid in pending:
+                m = dict(m)
+                m['tool_call_id'] = tid
+                pending.remove(tid)
+                out.append(m)
+            # else: orphan tool message — drop it (strict gateways 400 on these)
+        else:
+            pending = []
+            out.append(m)
+        i += 1
+
+    # drop dangling assistant tool_calls blocks with no tool response after them
+    final = []
+    for j, m in enumerate(out):
+        if m.get('role') == 'assistant' and m.get('tool_calls'):
+            nxt = out[j + 1] if j + 1 < len(out) else None
+            if not nxt or nxt.get('role') != 'tool':
+                continue
+        final.append(m)
+    return final
+
+
 def _load_conversation(user_id, session_id):
     from src.alice.models import AliceConversation
     conv = AliceConversation.query.filter_by(user_id=user_id, session_id=session_id).first()
@@ -159,12 +222,11 @@ def run_agent_stream(user_id, session_id, prompt, page_context=None, incognito=F
         return False
 
     _conv, history = _load_conversation(user_id, session_id)
-    messages = [{'role': 'system', 'content': _system_message(page_context)}]
-    # keep recent history (avoid unbounded growth)
-    for m in history[-30:]:
-        if m.get('role') in ('user', 'assistant', 'tool') and m.get('content') is not None:
-            messages.append({k: m[k] for k in ('role', 'content', 'tool_calls', 'tool_call_id', 'name') if k in m})
-    messages.append({'role': 'user', 'content': prompt})
+    system_msg = {'role': 'system', 'content': _system_message(page_context)}
+    user_msg = {'role': 'user', 'content': prompt}
+    # recent history, rebuilt provider-safe (drops orphans strict gateways 400 on)
+    messages = [system_msg] + sanitize_history(history) + [user_msg]
+    history_dropped_retry = False
 
     yield {'type': 'session_start', 'session_id': session_id}
 
@@ -188,6 +250,13 @@ def run_agent_stream(user_id, session_id, prompt, page_context=None, incognito=F
                             if (resp.status_code in RETRYABLE_STATUSES
                                     and _try_next_provider(resp.status_code)):
                                 continue  # retry same iteration on next provider
+                            if resp.status_code == 400 and not history_dropped_retry and len(messages) > 2:
+                                # shape rejected (often a history edge case): retry once
+                                # history-free so the user still gets an answer
+                                history_dropped_retry = True
+                                log.warning('ALICE retrying history-free cid=%s', cid)
+                                del messages[1:-1]
+                                continue
                             yield {'type': 'error',
                                    'content': "I'm having trouble reaching my brain right now (ref {}). Please try again in a moment.".format(cid)}
                             return
