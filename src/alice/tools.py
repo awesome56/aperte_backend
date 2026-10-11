@@ -393,6 +393,60 @@ def my_conversations(user_id):
     return {'success': True, 'data': out}
 
 
+APP_PAGES = [
+    {'path': '/add-listing', 'title': 'List your property',
+     'about': 'Register/add a new property listing (owners & agents).',
+     'keys': 'register add list create listing property post advertise'},
+    {'path': '/dashboard', 'title': 'Dashboard',
+     'about': 'Your account home: listings, bookings, requests, analytics.',
+     'keys': 'dashboard account home overview my account settings'},
+    {'path': '/listings', 'title': 'Browse properties',
+     'about': 'All listings with city/category/purpose/price filters.',
+     'keys': 'browse search listings properties find buy rent shortlet hotel land'},
+    {'path': '/favorites', 'title': 'Saved properties',
+     'about': 'Properties you saved for later.',
+     'keys': 'favorites saved liked bookmarked'},
+    {'path': '/create-request', 'title': 'Post a request',
+     'about': 'Post a looking-for request so owners come to you.',
+     'keys': 'request looking post wanted seeking find for me'},
+    {'path': '/browse-requests', 'title': 'Browse requests',
+     'about': "See what other seekers are looking for.",
+     'keys': 'browse requests seekers looking'},
+    {'path': '/requests', 'title': 'My requests',
+     'about': 'Requests you posted.',
+     'keys': 'my requests mine posted'},
+    {'path': '/messages', 'title': 'Messages',
+     'about': 'Chats with owners and seekers.',
+     'keys': 'messages chat inbox owner contact conversation'},
+    {'path': '/login', 'title': 'Log in',
+     'about': 'Log into your Aperte account.',
+     'keys': 'login sign in log in account access'},
+    {'path': '/register', 'title': 'Create account',
+     'about': 'Register a new Aperte account.',
+     'keys': 'register sign up create account join'},
+    {'path': '/', 'title': 'Home',
+     'about': 'Aperte homepage with search and collections.',
+     'keys': 'home start homepage main'},
+]
+
+
+def app_links(user_id, query):
+    """Keyword search over the Aperte site map (navigation help)."""
+    words = (query or '').lower().split()
+    scored = []
+    for p in APP_PAGES:
+        hay = (p['path'] + ' ' + p['title'] + ' ' + p['about'] + ' ' + p['keys']).lower()
+        score = sum(1 for w in words if w in hay)
+        if score:
+            scored.append((score, p))
+    scored.sort(key=lambda x: -x[0])
+    return {'success': True,
+            'pages': [{'path': p['path'], 'title': p['title'], 'about': p['about']}
+                      for _, p in scored[:4]] or
+                     [{'path': '/dashboard', 'title': 'Dashboard',
+                       'about': 'Your account home.'}]}
+
+
 def get_profile(user_id):
     u = User.query.filter_by(id=int(user_id)).first()
     if not u:
@@ -604,6 +658,7 @@ READ_EXECUTORS = {
     'my_conversations': my_conversations,
     'get_profile': get_profile,
     'admin_stats': admin_stats,
+    'app_links': app_links,
 }
 
 WRITE_EXECUTORS = {
@@ -758,6 +813,12 @@ TOOL_DEFINITIONS = [
         "name": "get_profile",
         "description": "Current user's profile with counts (listings, favorites, requests).",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "app_links",
+        "description": "Look up Aperte page links by keyword for navigation questions ('where do I register', 'link to messages'). Returns exact tappable paths. Prefer the SITE MAP in your instructions for common pages; use this when unsure.",
+        "parameters": {"type": "object", "properties": {
+            "query": {"type": "string", "description": "What the user wants to do, e.g. 'register property'."}},
+            "required": ["query"]}}},
     {"type": "function", "function": {
         "name": "admin_stats",
         "description": "Admin-only marketplace totals (users, properties, pending, bookings).",
