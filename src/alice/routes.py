@@ -8,6 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from src.alice.agent import run_agent_stream
 from src.alice.models import AliceConversation
+from src.alice.tts import synthesize, tts_status
 from src.alice.tools import (
     TOOL_DEFINITIONS, SAFE_TOOLS, WRITE_TOOLS, ALL_EXECUTORS, execute_tool,
 )
@@ -33,11 +34,14 @@ def _clean_messages(raw):
 
 @alice.get('/health')
 def health():
-    from src.alice.agent import DEEPSEEK_API_KEY, DEEPSEEK_MODEL
+    from src.alice.agent import provider_info
+    info = provider_info()
     return jsonify({'success': True, 'service': 'alice',
-                    'model_configured': bool(DEEPSEEK_API_KEY),
-                    'model': DEEPSEEK_MODEL,
-                    'tools': len(TOOL_DEFINITIONS)})
+                    'model_configured': info['model_configured'],
+                    'model': info['model'],
+                    'providers': info['providers'],
+                    'tools': len(TOOL_DEFINITIONS),
+                    'tts': tts_status()})
 
 
 @alice.post('/chat')
@@ -81,6 +85,21 @@ def execute():
 def permission():
     # Compat shim (HRMS used cache-backed allow/deny). Unified flow uses /execute instead.
     return jsonify({'success': True})
+
+
+@alice.post('/tts')
+@jwt_required()
+def tts():
+    """Spoken reply: Polly Generative (Ruth) primary, xAI Grok (eve) fallback."""
+    data = request.get_json(force=True, silent=True) or {}
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'success': False, 'message': 'text is required.'}), 400
+    audio, result = synthesize(text)
+    if audio is None:
+        return jsonify({'success': False, 'message': result}), 502
+    return Response(audio, headers={'Content-Type': 'audio/mpeg',
+                                    'Cache-Control': 'public, max-age=3600'})
 
 
 @alice.get('/conversations')

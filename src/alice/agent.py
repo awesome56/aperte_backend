@@ -1,9 +1,11 @@
 """ALICE orchestration loop (unified — replaces HRMS agent_daemon + agent_runner).
 
-Synchronous Flask-friendly streaming using httpx sync client against a
-DeepSeek/OpenAI-compatible Chat Completions API. Yields JSON-serialisable
-event dicts: session_start, content, tool_start, tool_end, request_permission,
-action, done, error.
+Synchronous Flask-friendly streaming using httpx sync client against an
+OpenAI-compatible Chat Completions API. Main brain is OpenCode Zen
+(AI_API_KEY/AI_BASE_URL/AI_MODEL); DeepSeek env vars remain as fallback and
+NVIDIA NIM as last-resort fallback. Yields JSON-serialisable event dicts:
+session_start, content, tool_start, tool_end, request_permission, action,
+done, error.
 
 Fixes vs HRMS daemon:
 - user_id is passed per-call (no global MCP_USER).
@@ -23,18 +25,68 @@ from datetime import datetime, timezone
 
 log = logging.getLogger('alice')
 
-DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '').strip()
-DEEPSEEK_MODEL = os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat').strip()
-DEEPSEEK_BASE_URL = os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com/v1').strip()
 MAX_AGENT_ITERATIONS = 10
+# HTTP statuses worth retrying on the next provider in the chain.
+RETRYABLE_STATUSES = (401, 402, 409, 429, 500, 502, 503, 504)
 
 from src.alice.prompts import SYSTEM_INSTRUCTIONS
 from src.alice.tools import TOOL_DEFINITIONS, SAFE_TOOLS, WRITE_TOOLS, execute_tool
 
 
-def _headers():
-    return {'Authorization': 'Bearer {}'.format(DEEPSEEK_API_KEY),
-            'Content-Type': 'application/json'}
+def provider_chain():
+    """Ordered LLM providers: OpenCode Zen → DeepSeek → NVIDIA NIM (keys present only)."""
+    chain = []
+    ai_key = os.environ.get('AI_API_KEY', '').strip()
+    if ai_key:
+        chain.append({
+            'label': 'zen',
+            'key': ai_key,
+            'base': (os.environ.get('AI_BASE_URL', '').strip()
+                     or 'https://opencode.ai/zen/go/v1').rstrip('/'),
+            'model': os.environ.get('AI_MODEL', '').strip() or 'deepseek-v4-flash-vision-exp',
+        })
+    ds_key = os.environ.get('DEEPSEEK_API_KEY', '').strip()
+    if ds_key:
+        chain.append({
+            'label': 'deepseek',
+            'key': ds_key,
+            'base': (os.environ.get('DEEPSEEK_BASE_URL', '').strip()
+                     or 'https://api.deepseek.com/v1').rstrip('/'),
+            'model': os.environ.get('DEEPSEEK_MODEL', '').strip() or 'deepseek-chat',
+        })
+    nv_key = os.environ.get('NVIDIA_API_KEY', '').strip()
+    if nv_key:
+        chain.append({
+            'label': 'nvidia',
+            'key': nv_key,
+            'base': (os.environ.get('NVIDIA_BASE_URL', '').strip()
+                     or 'https://integrate.api.nvidia.com/v1').rstrip('/'),
+            # Set NVIDIA_MODEL to a hosted id to enable this fallback.
+            'model': os.environ.get('NVIDIA_MODEL', '').strip()
+                     or os.environ.get('AI_MODEL', '').strip(),
+        })
+    return chain
+
+
+def provider_info():
+    chain = provider_chain()
+    return {'providers': [p['label'] for p in chain],
+            'model': chain[0]['model'] if chain else None,
+            'model_configured': bool(chain)}
+
+
+def _headers(provider, session_id=''):
+    headers = {'Authorization': 'Bearer {}'.format(provider['key']),
+               'Content-Type': 'application/json'}
+    raw = os.environ.get('AI_EXTRA_HEADERS_JSON', '').strip()
+    if raw:
+        try:
+            extra = json.loads(raw.replace('{session_id}', session_id or ''))
+            for k, v in extra.items():
+                headers[str(k)] = str(v)
+        except ValueError:
+            log.warning('ALICE ignoring malformed AI_EXTRA_HEADERS_JSON')
+    return headers
 
 
 def _load_conversation(user_id, session_id):
@@ -91,9 +143,20 @@ def run_agent_stream(user_id, session_id, prompt, page_context=None, incognito=F
     """Generator yielding event dicts for SSE (JSON lines)."""
     import httpx
 
-    if not DEEPSEEK_API_KEY:
+    chain = provider_chain()
+    if not chain:
         yield {'type': 'error', 'content': "I'm not configured yet — please try again in a little while."}
         return
+    provider_idx = 0
+
+    def _try_next_provider(status=None):
+        nonlocal provider_idx
+        if provider_idx + 1 < len(chain):
+            provider_idx += 1
+            log.warning('ALICE switching provider to %s (after %s)',
+                        chain[provider_idx]['label'], status)
+            return True
+        return False
 
     _conv, history = _load_conversation(user_id, session_id)
     messages = [{'role': 'system', 'content': _system_message(page_context)}]
@@ -109,17 +172,22 @@ def run_agent_stream(user_id, session_id, prompt, page_context=None, incognito=F
     try:
         with httpx.Client(timeout=120.0) as client:
             for _iteration in range(1, MAX_AGENT_ITERATIONS + 1):
-                payload = {'model': DEEPSEEK_MODEL, 'messages': messages,
+                provider = chain[provider_idx]
+                payload = {'model': provider['model'], 'messages': messages,
                            'tools': TOOL_DEFINITIONS, 'stream': True}
                 full_content = ''
                 tool_calls = []
                 try:
-                    with client.stream('POST', DEEPSEEK_BASE_URL + '/chat/completions',
-                                       headers=_headers(), json=payload) as resp:
+                    with client.stream('POST', provider['base'] + '/chat/completions',
+                                       headers=_headers(provider, session_id), json=payload) as resp:
                         if resp.status_code != 200:
                             body = resp.read().decode(errors='replace')[:500]
                             cid = uuid.uuid4().hex[:8]
-                            log.error('ALICE provider %s cid=%s body=%s', resp.status_code, cid, body)
+                            log.error('ALICE provider %s status=%s cid=%s body=%s',
+                                      provider['label'], resp.status_code, cid, body)
+                            if (resp.status_code in RETRYABLE_STATUSES
+                                    and _try_next_provider(resp.status_code)):
+                                continue  # retry same iteration on next provider
                             yield {'type': 'error',
                                    'content': "I'm having trouble reaching my brain right now (ref {}). Please try again in a moment.".format(cid)}
                             return
@@ -157,6 +225,9 @@ def run_agent_stream(user_id, session_id, prompt, page_context=None, incognito=F
                                 if fn.get('arguments'):
                                     tool_calls[idx]['function']['arguments'] += fn['arguments']
                 except Exception as e:
+                    # Network-level failure before any content → try next provider.
+                    if not full_content and not tool_calls and _try_next_provider('connection-error'):
+                        continue
                     cid = uuid.uuid4().hex[:8]
                     log.exception('ALICE stream failed cid=%s', cid)
                     yield {'type': 'error',
