@@ -245,12 +245,42 @@ def market_stats(user_id):
             'top_cities': [{'city': c, 'count': n} for c, n in top_cities]}
 
 
-def my_properties(user_id, page=1, per_page=10):
-    pag = Property.query.filter_by(user_id=int(user_id))\
-        .order_by(Property.created_at.desc())\
+def my_properties(user_id, page=1, per_page=10, category=None,
+                    purpose=None, city=None, available=None):
+    query = Property.query.filter_by(user_id=int(user_id))
+    if category:
+        query = query.filter_by(category=category)
+    if purpose:
+        query = query.filter_by(purpose=purpose)
+    if city:
+        query = query.filter(Property.city.ilike('%{}%'.format(city.strip())))
+    if available is not None:
+        try:
+            query = query.filter_by(available=int(available))
+        except (TypeError, ValueError):
+            pass
+    pag = query.order_by(Property.created_at.desc())\
         .paginate(page=int(page or 1), per_page=min(20, int(per_page or 10)), error_out=False)
     return {'success': True, 'data': [_brief(p) for p in pag.items],
             'meta': {'page': pag.page, 'pages': pag.pages, 'total_count': pag.total}}
+
+
+def my_property_stats(user_id):
+    """Instant breakdown of the current user's listings (no paging needed)."""
+    uid = int(user_id)
+    total = Property.query.filter_by(user_id=uid).count()
+    by_cat = dict(Property.query.filter_by(user_id=uid)
+                  .with_entities(Property.category, func.count(Property.id))
+                  .group_by(Property.category).all())
+    by_purpose = dict(Property.query.filter_by(user_id=uid)
+                      .with_entities(Property.purpose, func.count(Property.id))
+                      .group_by(Property.purpose).all())
+    top_cities = Property.query.filter_by(user_id=uid)\
+        .with_entities(Property.city, func.count(Property.id))\
+        .group_by(Property.city).order_by(func.count(Property.id).desc()).limit(6).all()
+    return {'success': True, 'total_count': total,
+            'by_category': by_cat, 'by_purpose': by_purpose,
+            'top_cities': [{'city': c, 'count': n} for c, n in top_cities]}
 
 
 def my_favorites_list(user_id, page=1, per_page=12):
@@ -563,6 +593,7 @@ READ_EXECUTORS = {
     'similar_properties': similar_properties,
     'market_stats': market_stats,
     'my_properties': my_properties,
+    'my_property_stats': my_property_stats,
     'my_favorites_list': my_favorites_list,
     'browse_requests': browse_requests,
     'my_requests': my_requests,
@@ -636,9 +667,17 @@ TOOL_DEFINITIONS = [
         "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {
         "name": "my_properties",
-        "description": "Current user's own listings.",
+        "description": "Current user's own listings, filterable by category/purpose/city. Use this for 'show my shortlets/houses/land' — pass category directly instead of paging the full list. AFTER calling: one emoji-prefixed line per listing with id. Counts come ONLY from meta.total_count.",
         "parameters": {"type": "object", "properties": {
-            "page": {"type": "integer"}, "per_page": {"type": "integer"}}, "required": []}}},
+            "page": {"type": "integer"}, "per_page": {"type": "integer"},
+            "category": {"type": "string", "description": "property|land|hotel|hall|event_center|shortlet."},
+            "purpose": {"type": "string", "description": "rent|sale."},
+            "city": {"type": "string", "description": "City filter."},
+            "available": {"type": "integer", "description": "1 available, 0 unavailable."}}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "my_property_stats",
+        "description": "Instant breakdown of the current user's listings: total_count plus counts by category, by purpose, and top cities. Use this FIRST for 'how many of my X', 'break down my listings', 'how many shortlets do I have' — then optionally pull examples with my_properties. Never page the full list to tally categories yourself.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {
         "name": "my_favorites_list",
         "description": "Properties the user saved.",
